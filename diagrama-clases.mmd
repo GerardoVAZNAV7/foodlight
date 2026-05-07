@@ -1,0 +1,130 @@
+classDiagram
+    class AuthStore {
+        +user: User
+        +isAuthenticated: boolean
+        +login()
+        +register()
+        +logout()
+    }
+
+    class AlimentosStore {
+        +alimentos: Alimento[]
+        +grupos: GrupoAlimento[]
+        +fetchAlimentos()
+        +searchAlimentos(query)
+    }
+
+    class RecetasStore {
+        +recetas: Receta[]
+        +fetchRecetas()
+        +fetchRecetasPorCondicion()
+    }
+
+    class PerfilStore {
+        +perfil: Perfil
+        +condiciones: Condicion[]
+        +fetchPerfil()
+        +actualizarCondiciones()
+    }
+
+    class FavoritosStore {
+        +alimentosFavoritos: Alimento[]
+        +recetasFavoritas: Receta[]
+        +toggleAlimentoFavorito()
+        +toggleRecetaFavorita()
+    }
+
+    class AuthController {
+        +register()
+        +login()
+        +logout()
+    }
+
+    class AlimentoController {
+        +index()
+        +show()
+        +search()
+    }
+
+    class RecetaController {
+        +index()
+        +show()
+        +porCondicion()
+    }
+
+    class PerfilController {
+        +show()
+        +update()
+        +updateCondiciones()
+    }
+
+    class FavoritoController {
+        +toggleAlimento()
+        +toggleReceta()
+    }
+
+    class SemaforoService {
+        +calcularColor()
+        +aplicarReglas()
+    }
+
+    class NutricionService {
+        +calcularPorcion()
+        +sumarNutricion()
+    }
+
+    class Alimento {
+        +id: int
+        +nombre: string
+        +energia_kcal: float
+        +azucar_g: float
+        +sodio_mg: float
+        +contiene_gluten: bool
+    }
+
+    class GrupoAlimento {
+        +id: int
+        +nombre: string
+    }
+
+    class Receta {
+        +id: int
+        +nombre: string
+        +ingredientes: RecetaIngrediente[]
+    }
+
+    class RecetaIngrediente {
+        +cantidad: float
+        +alimento: Alimento
+    }
+
+    class Profile {
+        +id: uuid
+        +nombre: string
+        +condiciones: CondicionMedica[]
+    }
+
+    class CondicionMedica {
+        +id: int
+        +clave: string
+        +nombre: string
+    }
+
+    class ReglaSemaforo {
+        +campo_nutriente: string
+        +color: string
+        +umbral_min: float
+        +umbral_max: float
+    }
+
+    AuthStore --* AlimentosStore
+    AuthStore --* PerfilStore
+    PerfilStore --* FavoritosStore
+    AuthController --> AlimentoController
+    AlimentoController --> SemaforoService
+    RecetaController --> NutricionService
+    Alimento --> GrupoAlimento
+    Receta --> RecetaIngrediente
+    RecetaIngrediente --> Alimento
+    Profile --> CondicionMedica
+    CondicionMedica --> ReglaSemaforo

@@ -1,0 +1,154 @@
+erDiagram
+    grupos_alimentos {
+        int id PK
+        varchar nombre
+        text descripcion
+        timestamptz created_at
+    }
+
+    alimentos {
+        int id PK
+        int grupo_id FK
+        varchar nombre
+        varchar nombre_normalizado
+        varchar cantidad_sugerida
+        varchar unidad
+        numeric peso_bruto_g
+        numeric peso_neto_g
+        numeric energia_kcal
+        numeric proteina_g
+        numeric lipidos_g
+        numeric hidratos_carbono_g
+        numeric ag_saturados_g
+        numeric ag_monoinsaturados_g
+        numeric ag_poliinsaturados_g
+        numeric colesterol_mg
+        numeric azucar_g
+        numeric fibra_g
+        numeric vitamina_a_mg_re
+        numeric acido_ascorbico_mg
+        numeric acido_folico_mg
+        numeric calcio_mg
+        numeric hierro_mg
+        numeric potasio_mg
+        numeric sodio_mg
+        numeric fosforo_mg
+        numeric etanol_g
+        numeric indice_glucemico
+        numeric carga_glucemica
+        boolean contiene_gluten
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    profiles {
+        uuid id PK
+        varchar nombre
+        date fecha_nacimiento
+        char sexo
+        numeric peso_kg
+        numeric talla_cm
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    condiciones_medicas {
+        int id PK
+        varchar clave
+        varchar nombre
+        text descripcion
+        varchar icono
+        timestamptz created_at
+    }
+
+    usuario_condiciones {
+        uuid usuario_id FK
+        int condicion_id FK
+        boolean activa
+        date fecha_inicio
+        timestamptz created_at
+    }
+
+    reglas_semaforo {
+        int id PK
+        int condicion_id FK
+        varchar campo_nutriente
+        varchar color
+        numeric umbral_min
+        numeric umbral_max
+        text descripcion
+        smallint prioridad
+        timestamptz created_at
+    }
+
+    clasificaciones_cache {
+        int alimento_id FK
+        int condicion_id FK
+        varchar color
+        text razon
+        timestamptz calculado_en
+    }
+
+    recetas {
+        int id PK
+        varchar nombre
+        text descripcion
+        text instrucciones
+        smallint porciones
+        smallint tiempo_min
+        text imagen_url
+        boolean activa
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    receta_ingredientes {
+        int id PK
+        int receta_id FK
+        int alimento_id FK
+        numeric cantidad
+        varchar unidad
+        text notas
+        timestamptz created_at
+    }
+
+    receta_condiciones {
+        int receta_id FK
+        int condicion_id FK
+        varchar color_promedio
+        timestamptz calculado_en
+    }
+
+    favoritos_alimentos {
+        uuid usuario_id FK
+        int alimento_id FK
+        timestamptz created_at
+    }
+
+    favoritos_recetas {
+        uuid usuario_id FK
+        int receta_id FK
+        timestamptz created_at
+    }
+
+    historial_busquedas {
+        bigint id PK
+        uuid usuario_id FK
+        varchar termino
+        timestamptz created_at
+    }
+
+    grupos_alimentos ||--o{ alimentos : "contiene"
+    alimentos ||--o{ clasificaciones_cache : "clasificado_en"
+    condiciones_medicas ||--o{ usuario_condiciones : "asignada_a"
+    condiciones_medicas ||--o{ reglas_semaforo : "regla_para"
+    condiciones_medicas ||--o{ clasificaciones_cache : "por_condicion"
+    condiciones_medicas ||--o{ receta_condiciones : "evaluada_en"
+    profiles ||--o{ usuario_condiciones : "tiene"
+    profiles ||--o{ favoritos_alimentos : "guarda"
+    profiles ||--o{ favoritos_recetas : "guarda"
+    profiles ||--o{ historial_busquedas : "registra"
+    recetas ||--o{ receta_ingredientes : "contiene"
+    recetas ||--o{ receta_condiciones : "evaluada_en"
+    alimentos ||--o{ receta_ingredientes : "usado_en"
+    recetas ||--o{ favoritos_recetas : "marcada"

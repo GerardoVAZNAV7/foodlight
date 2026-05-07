@@ -1,0 +1,48 @@
+sequenceDiagram
+    participant Vue as Vue.js (Frontend)
+    participant Laravel as Laravel (Backend API)
+    participant Supabase as Supabase (Auth + DB)
+
+    Note over Vue,Laravel: flujo 1: Registro/Login
+    Vue->>Laravel: POST /api/auth/register
+    Laravel->>Supabase: POST /auth/v1/signup
+    Supabase-->>Laravel: { session, user }
+    Laravel-->>Vue: { token, user }
+
+    Note over Vue,Laravel: flujo 2: Consultar alimentos por grupo
+    Vue->>Laravel: GET /api/alimentos?grupo=verduras
+    Laravel->>Supabase: SELECT * FROM alimentos WHERE grupo_id = ?
+    Supabase-->>Laravel: [alimentos...]
+    Laravel->>Supabase: SELECT * FROM usuario_condiciones WHERE usuario_id = ?
+    Supabase-->>Laravel: [condiciones...]
+    Laravel->>Supabase: SELECT * FROM reglas_semaforo WHERE condicion_id IN (...)
+    Supabase-->>Laravel: [reglas...]
+    Note over Laravel: Calcular semáforo por cada alimento
+    Laravel-->>Vue: { alimentos[], color_semaforo[] }
+
+    Note over Vue,Laravel: flujo 3: Búsqueda con historial
+    Vue->>Laravel: GET /api/alimentos/search?q=pollo
+    Laravel->>Supabase: INSERT historial_busquedas
+    Laravel->>Supabase: SELECT * FROM alimentos WHERE nombre ILIKE '%pollo%'
+    Supabase-->>Laravel: [resultados]
+    Laravel-->>Vue: { resultados }
+
+    Note over Vue,Laravel: flujo 4: Actualizar condiciones médicas
+    Vue->>Laravel: PUT /api/perfil/condiciones
+    Laravel->>Supabase: UPDATE usuario_condiciones SET activa = ?
+    Supabase-->>Laravel: OK
+    Laravel->>Supabase: SELECT * FROM clasificaciones_cache WHERE condicion_id = ?
+    Supabase-->>Laravel: [cache]
+    Laravel-->>Vue: { mensaje: "Actualizado" }
+
+    Note over Vue,Laravel: flujo 5: Ver recetas recomendadas
+    Vue->>Laravel: GET /api/recetas?condicion=diabetes_t2
+    Laravel->>Supabase: SELECT r.*, rc.color_promedio FROM recetas r JOIN receta_condiciones rc ON r.id = rc.receta_id WHERE rc.condicion_id = ? AND r.activa = true
+    Supabase-->>Laravel: [recetas]
+    Laravel-->>Vue: { recetas[] }
+
+    Note over Vue,Laravel: flujo 6: Marcar/desmarcar favorito
+    Vue->>Laravel: POST /api/favoritos/alimento
+    Laravel->>Supabase: INSERT INTO favoritos_alimentos (usuario_id, alimento_id)
+    Supabase-->>Laravel: OK
+    Laravel-->>Vue: { mensaje: "Favorito guardado" }
