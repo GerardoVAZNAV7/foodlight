@@ -34,7 +34,7 @@
           v-for="m in mealTypes" :key="m.key"
           role="tab" :aria-selected="mealTab === m.key"
           class="meal-tab" :class="{ active: mealTab === m.key }"
-          @click="mealTab = m.key"
+          @click="switchTab(m.key)"
         >
           <span>{{ m.icon }}</span>
           <span>{{ m.label }}</span>
@@ -51,11 +51,11 @@
       <div v-else-if="error" class="error-state card">
         <span>⚠️</span>
         <p>{{ error }}</p>
-        <button class="btn btn-primary" @click="loadRecetas">Reintentar</button>
+        <button class="btn btn-primary" @click="loadRecetas(mealTab)">Reintentar</button>
       </div>
 
       <!-- Sin recetas para esta categoría -->
-      <div v-else-if="filteredRecipes.length === 0" class="empty-state card">
+      <div v-else-if="recetas.length === 0" class="empty-state card">
         <span>🍽️</span>
         <p>No hay recetas disponibles para esta categoría aún.</p>
       </div>
@@ -63,11 +63,10 @@
       <!-- Grid de recetas -->
       <div v-else class="recipe-grid">
         <div
-          v-for="recipe in filteredRecipes" :key="recipe.id"
+          v-for="recipe in recetas" :key="recipe.id"
           class="recipe-card card"
           @click="openRecipe(recipe)"
         >
-          <!-- Imagen desde BD -->
           <div class="recipe-img">
             <img
               v-if="recipe.imagen_url"
@@ -77,7 +76,7 @@
               @error="onImgError($event)"
             />
             <div v-else class="recipe-img-fallback">
-              <span>{{ mealEmoji(mealTab) }}</span>
+              <span>{{ currentMeal.icon }}</span>
             </div>
           </div>
 
@@ -98,7 +97,6 @@
       <div v-if="selectedRecipe" class="modal-overlay" @click.self="selectedRecipe = null">
         <div class="modal-card">
 
-          <!-- Imagen modal -->
           <div class="modal-img-wrap">
             <img
               v-if="selectedRecipe.imagen_url"
@@ -108,7 +106,7 @@
               @error="onImgError($event)"
             />
             <div v-else class="modal-img-fallback">
-              <span>{{ mealEmoji(mealTab) }}</span>
+              <span>{{ currentMeal.icon }}</span>
             </div>
             <button class="modal-close" @click="selectedRecipe = null">✕</button>
           </div>
@@ -167,18 +165,6 @@ const recetas = ref([])
 const loading = ref(false)
 const error = ref(null)
 
-// ─── Mapeo de categoría por receta_id según los datos de la BD ────────────────
-// Desayunos: 1(galletas), 2(licuado), 9(smoothie bowl), 10(huevos), 11(avena)
-// Comidas:   3(sopa pollo), 7(salmón), 8(pechuga horno), 13(bowl pollo), 14(ensalada atún)
-// Cenas:     4(crema brócoli), 6(lentejas), 12(caprese)
-// Snacks:    5(tacos frijoles)
-const CATEGORIA_MAP = {
-  1: 'desayuno', 2: 'desayuno', 9: 'desayuno', 10: 'desayuno', 11: 'desayuno',
-  3: 'comida', 7: 'comida', 8: 'comida', 13: 'comida', 14: 'comida',
-  4: 'cena', 6: 'cena', 12: 'cena',
-  5: 'snack',
-}
-
 const condLabels = {
   celiaquía: '🌾 Celiaquía',
   hipertensión: '💊 Hipertensión',
@@ -206,32 +192,36 @@ const mealTypes = [
   { key: 'snack',    label: 'Snack',    icon: '🍎' },
 ]
 
-const mealEmoji = (key) =>
-  ({ desayuno: '🌅', comida: '☀️', cena: '🌙', snack: '🍎' }[key] || '🍽️')
+const currentMeal = computed(() => mealTypes.find(m => m.key === mealTab.value) || mealTypes[0])
 
-const filteredRecipes = computed(() =>
-  recetas.value.filter(r => r.categoria === mealTab.value)
-)
-
-// ─── Carga desde Supabase ──────────────────────────────────────────────────────
-async function loadRecetas() {
+// ── Carga filtrando por tipo_comida directo en Supabase ──────────────────────
+async function loadRecetas(tipo) {
   loading.value = true
   error.value = null
+  recetas.value = []
 
   try {
-    // 1) Cargar recetas
+    // 1) Recetas del tipo seleccionado
     const { data: recetasData, error: recetasErr } = await supabase
       .from('recetas')
       .select('*')
       .eq('activa', true)
+      .eq('tipo_comida', tipo)
       .order('id')
 
     if (recetasErr) throw recetasErr
 
-    // 2) Cargar ingredientes de todas las recetas
+    if (!recetasData?.length) {
+      recetas.value = []
+      return
+    }
+
+    // 2) Ingredientes solo de esas recetas
+    const ids = recetasData.map(r => r.id)
     const { data: ingredientesData, error: ingErr } = await supabase
       .from('receta_ingredientes')
       .select('*')
+      .in('receta_id', ids)
       .order('id')
 
     if (ingErr) throw ingErr
@@ -243,10 +233,9 @@ async function loadRecetas() {
       ingPorReceta[ing.receta_id].push(ing)
     }
 
-    // 4) Combinar y asignar categoría
-    recetas.value = (recetasData || []).map(r => ({
+    // 4) Combinar
+    recetas.value = recetasData.map(r => ({
       ...r,
-      categoria: CATEGORIA_MAP[r.id] || 'comida',
       ingredientes: ingPorReceta[r.id] || [],
     }))
   } catch (e) {
@@ -257,11 +246,15 @@ async function loadRecetas() {
   }
 }
 
+function switchTab(tipo) {
+  mealTab.value = tipo
+  loadRecetas(tipo)
+}
+
 function openRecipe(recipe) {
   selectedRecipe.value = recipe
 }
 
-// Parsea instrucciones que vienen como string numerado "1. ... 2. ..."
 function parsedSteps(instrucciones) {
   if (!instrucciones) return []
   return instrucciones
@@ -272,11 +265,12 @@ function parsedSteps(instrucciones) {
 
 function onImgError(e) {
   e.target.style.display = 'none'
-  e.target.nextElementSibling?.style && (e.target.nextElementSibling.style.display = 'flex')
+  const fallback = e.target.parentElement?.querySelector('.recipe-img-fallback, .modal-img-fallback')
+  if (fallback) fallback.style.display = 'flex'
 }
 
 onMounted(() => {
-  if (store.hasProfile) loadRecetas()
+  if (store.hasProfile) loadRecetas(mealTab.value)
 })
 </script>
 
@@ -339,7 +333,6 @@ onMounted(() => {
 .recipe-card { padding: 0; overflow: hidden; cursor: pointer; transition: transform .2s, box-shadow .2s; }
 .recipe-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 
-/* Imagen */
 .recipe-img { position: relative; width: 100%; height: 180px; overflow: hidden; background: var(--gray-100); }
 .recipe-photo { width: 100%; height: 100%; object-fit: cover; display: block; }
 .recipe-img-fallback {
@@ -348,7 +341,6 @@ onMounted(() => {
   font-size: 52px;
 }
 
-/* Cuerpo */
 .recipe-body   { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
 .recipe-name   { font-size: 17px; font-weight: 700; }
 .recipe-desc   { font-size: 13px; color: var(--gray-500); line-height: 1.5; }

@@ -11,14 +11,17 @@
         <router-link to="/semaforo" class="sidebar-link" active-class="active">
           <span class="sidebar-icon">🚦</span>
           <span class="sidebar-label">Semáforo</span>
+          <kbd class="shortcut-hint">Alt+S</kbd>
         </router-link>
         <router-link to="/perfil" class="sidebar-link" active-class="active">
           <span class="sidebar-icon">👤</span>
           <span class="sidebar-label">Perfil</span>
+          <kbd class="shortcut-hint">Alt+P</kbd>
         </router-link>
         <router-link to="/recetas" class="sidebar-link" active-class="active">
           <span class="sidebar-icon">🍽️</span>
           <span class="sidebar-label">Recetas</span>
+          <kbd class="shortcut-hint">Alt+R</kbd>
         </router-link>
       </nav>
 
@@ -50,11 +53,18 @@
 
     <!-- Mobile Bottom Nav -->
     <BottomNav v-if="store.isLoggedIn" />
+
+    <!-- Shortcut toast -->
+    <transition name="shortcut-toast">
+      <div v-if="shortcutLabel" class="shortcut-toast" aria-live="polite">
+        {{ shortcutLabel }}
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useUserStore } from '@/stores/userStore'
 import { useRouter } from 'vue-router'
 import NavBar from '@/components/NavBar.vue'
@@ -74,6 +84,76 @@ function logout() {
     router.push('/login')
   }
 }
+
+// ── Shortcut feedback toast ──────────────────────────────────────────────────
+const shortcutLabel = ref('')
+let shortcutTimer = null
+
+function showShortcut(label) {
+  shortcutLabel.value = label
+  clearTimeout(shortcutTimer)
+  shortcutTimer = setTimeout(() => { shortcutLabel.value = '' }, 1400)
+}
+
+// ── Global keyboard shortcuts ────────────────────────────────────────────────
+function onKeydown(e) {
+  // Solo cuando el usuario está logueado
+  if (!store.isLoggedIn) return
+
+  // No activar si está escribiendo en un input/textarea/select
+  const tag = document.activeElement?.tagName
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) {
+    // Excepción: Alt+B sí puede activarse desde cualquier lado (va AL buscador, no desde él)
+    if (!(e.altKey && e.key === 'b')) return
+  }
+
+  if (!e.altKey) return
+
+  switch (e.key) {
+    case 's':
+      e.preventDefault()
+      router.push('/semaforo')
+      showShortcut('🚦 Semáforo')
+      break
+    case 'p':
+      e.preventDefault()
+      router.push('/perfil')
+      showShortcut('👤 Perfil')
+      break
+    case 'r':
+      e.preventDefault()
+      router.push('/recetas')
+      showShortcut('🍽️ Recetas')
+      break
+    case 'b':
+      e.preventDefault()
+      // Navega al semáforo si no estamos ahí, luego enfoca el buscador
+      if (router.currentRoute.value.path !== '/semaforo') {
+        router.push('/semaforo').then(focusSearch)
+      } else {
+        focusSearch()
+      }
+      showShortcut('🔍 Buscador')
+      break
+  }
+}
+
+function focusSearch() {
+  // Espera al próximo tick para que el DOM esté listo tras la navegación
+  setTimeout(() => {
+    const el = document.getElementById('semaforo-search')
+    if (el) {
+      el.focus()
+      el.select()
+    }
+  }, 120)
+}
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+  clearTimeout(shortcutTimer)
+})
 </script>
 
 <style>
@@ -111,10 +191,7 @@ function logout() {
     max-width: none;
   }
 
-  /* Hide mobile navbar on desktop */
-  .app-shell.logged-in .mobile-only-navbar {
-    display: none;
-  }
+  .app-shell.logged-in .mobile-only-navbar { display: none; }
 
   .sidebar {
     display: flex;
@@ -135,143 +212,114 @@ function logout() {
     overflow-y: auto;
   }
 
-  /* Hide mobile nav on desktop */
-  .app-shell.logged-in nav.bottom-nav {
-    display: none;
-  }
-
-  /* Hide mobile topbar on desktop */
-  .app-shell.logged-in header.navbar {
-    display: none;
-  }
+  .app-shell.logged-in nav.bottom-nav { display: none; }
+  .app-shell.logged-in header.navbar { display: none; }
 }
 
 @media (min-width: 1200px) {
-  .app-shell.logged-in {
-    grid-template-columns: 260px 1fr;
-  }
+  .app-shell.logged-in { grid-template-columns: 260px 1fr; }
 }
 
 /* ── Sidebar styles ── */
 .sidebar-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: flex; align-items: center; gap: 10px;
   padding: 8px 12px 20px;
   border-bottom: 1px solid var(--gray-100);
   margin-bottom: 8px;
 }
 .sidebar-brand .brand-icon { font-size: 24px; }
 .sidebar-brand .brand-name {
-  font-size: 22px;
-  font-weight: 800;
+  font-size: 22px; font-weight: 800;
   background: linear-gradient(135deg, var(--green), var(--blue));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
 
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-}
+.sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 
 .sidebar-link {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  display: flex; align-items: center; gap: 12px;
   padding: 12px 16px;
   border-radius: var(--radius-md);
-  text-decoration: none;
-  color: var(--gray-600);
-  font-size: 14px;
-  font-weight: 600;
+  text-decoration: none; color: var(--gray-600);
+  font-size: 14px; font-weight: 600;
   transition: all .2s;
 }
-.sidebar-link:hover {
-  background: var(--gray-100);
-  color: var(--gray-900);
-}
-.sidebar-link.active {
-  background: var(--green-light);
-  color: var(--green-dark);
-}
+.sidebar-link:hover { background: var(--gray-100); color: var(--gray-900); }
+.sidebar-link.active { background: var(--green-light); color: var(--green-dark); }
 .sidebar-icon { font-size: 18px; }
-.sidebar-label { font-size: 14px; }
+.sidebar-label { font-size: 14px; flex: 1; }
+
+/* ── Shortcut hint badge en sidebar ── */
+.shortcut-hint {
+  font-size: 10px; font-weight: 700;
+  background: var(--gray-100); color: var(--gray-400);
+  border: 1px solid var(--gray-200);
+  border-radius: 4px; padding: 2px 5px;
+  font-family: monospace; letter-spacing: .02em;
+  opacity: 0;
+  transition: opacity .15s;
+  pointer-events: none;
+}
+.sidebar-link:hover .shortcut-hint,
+.sidebar-link.active .shortcut-hint {
+  opacity: 1;
+}
 
 .sidebar-footer {
-  border-top: 1px solid var(--gray-100);
-  padding-top: 16px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  border-top: 1px solid var(--gray-100); padding-top: 16px;
+  display: flex; align-items: center; gap: 8px;
 }
-.sidebar-user {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-  min-width: 0;
-}
+.sidebar-user { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
 .sidebar-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
+  width: 36px; height: 36px; border-radius: 50%;
   background: linear-gradient(135deg, var(--green), var(--blue));
-  color: white;
-  font-size: 13px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  color: white; font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
-.sidebar-user-info {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
+.sidebar-user-info { display: flex; flex-direction: column; min-width: 0; }
 .sidebar-user-name {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--gray-800);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 13px; font-weight: 700; color: var(--gray-800);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .sidebar-user-email {
-  font-size: 11px;
-  color: var(--gray-400);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 11px; color: var(--gray-400);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .sidebar-logout {
-  background: var(--gray-100);
-  border: none;
-  border-radius: var(--radius-sm);
-  padding: 8px;
-  cursor: pointer;
-  color: var(--gray-500);
-  font-size: 16px;
-  transition: all .2s;
-  flex-shrink: 0;
+  background: var(--gray-100); border: none; border-radius: var(--radius-sm);
+  padding: 8px; cursor: pointer; color: var(--gray-500); font-size: 16px;
+  transition: all .2s; flex-shrink: 0;
 }
-.sidebar-logout:hover {
-  background: var(--red-light);
-  color: var(--red);
-}
+.sidebar-logout:hover { background: var(--red-light); color: var(--red); }
 
 /* ── Mobile nav padding ── */
-.main-content.with-nav {
-  padding-bottom: 80px;
-}
+.main-content.with-nav { padding-bottom: 80px; }
 
 /* ── Page transitions ── */
-.fade-enter-active, .fade-leave-active {
-  transition: opacity .18s ease, transform .18s ease;
-}
+.fade-enter-active, .fade-leave-active { transition: opacity .18s ease, transform .18s ease; }
 .fade-enter-from { opacity: 0; transform: translateY(6px); }
 .fade-leave-to { opacity: 0; transform: translateY(-6px); }
+
+/* ── Shortcut feedback toast ── */
+.shortcut-toast {
+  position: fixed;
+  bottom: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 8000;
+  background: rgba(15, 23, 42, .88);
+  color: white;
+  font-size: 13px; font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 99px;
+  pointer-events: none;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 20px rgba(0,0,0,.25);
+}
+
+.shortcut-toast-enter-active { transition: opacity .15s ease, transform .15s ease; }
+.shortcut-toast-leave-active  { transition: opacity .3s ease, transform .3s ease; }
+.shortcut-toast-enter-from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+.shortcut-toast-leave-to   { opacity: 0; transform: translateX(-50%) translateY(-4px); }
 </style>
