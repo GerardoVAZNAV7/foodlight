@@ -1,12 +1,13 @@
 <template>
   <div class="recetas-page">
+
     <!-- Header -->
     <div class="recetas-header">
       <h2>Recetas para ti</h2>
       <p>Sugerencias basadas en tu perfil y semáforo</p>
     </div>
 
-    <!-- No profile -->
+    <!-- Sin perfil -->
     <div v-if="!store.hasProfile" class="no-profile-card card">
       <div class="np-icon">🍽️</div>
       <h3>Completa tu perfil</h3>
@@ -15,7 +16,7 @@
     </div>
 
     <template v-else>
-      <!-- Caloric target -->
+      <!-- Objetivo calórico -->
       <div class="caloric-target card">
         <div class="target-icon">🎯</div>
         <div class="target-info">
@@ -27,7 +28,7 @@
         </div>
       </div>
 
-      <!-- Meal type tabs -->
+      <!-- Tabs de tipo de comida -->
       <div class="meal-tabs" role="tablist">
         <button
           v-for="m in mealTypes" :key="m.key"
@@ -40,89 +41,111 @@
         </button>
       </div>
 
-      <!-- COMING SOON overlay note -->
-      <div class="coming-soon-bar">
-        <span>🚀</span>
-        <p>En producción, las recetas se generarán con IA usando tus datos y la base de alimentos de Supabase.</p>
+      <!-- Estado de carga -->
+      <div v-if="loading" class="loading-state">
+        <div class="spinner"></div>
+        <p>Cargando recetas…</p>
       </div>
 
-      <!-- Recipe cards (mock data) -->
-      <div class="recipe-grid">
+      <!-- Error -->
+      <div v-else-if="error" class="error-state card">
+        <span>⚠️</span>
+        <p>{{ error }}</p>
+        <button class="btn btn-primary" @click="loadRecetas">Reintentar</button>
+      </div>
+
+      <!-- Sin recetas para esta categoría -->
+      <div v-else-if="filteredRecipes.length === 0" class="empty-state card">
+        <span>🍽️</span>
+        <p>No hay recetas disponibles para esta categoría aún.</p>
+      </div>
+
+      <!-- Grid de recetas -->
+      <div v-else class="recipe-grid">
         <div
           v-for="recipe in filteredRecipes" :key="recipe.id"
           class="recipe-card card"
-          @click="selectedRecipe = recipe"
+          @click="openRecipe(recipe)"
         >
-          <div class="recipe-img" :style="{ background: recipe.color }">
-            <span class="recipe-emoji">{{ recipe.emoji }}</span>
-            <div class="recipe-badges">
-              <span v-for="b in recipe.badges" :key="b" class="r-badge">{{ b }}</span>
+          <!-- Imagen desde BD -->
+          <div class="recipe-img">
+            <img
+              v-if="recipe.imagen_url"
+              :src="recipe.imagen_url"
+              :alt="recipe.nombre"
+              class="recipe-photo"
+              @error="onImgError($event)"
+            />
+            <div v-else class="recipe-img-fallback">
+              <span>{{ mealEmoji(mealTab) }}</span>
             </div>
           </div>
+
           <div class="recipe-body">
-            <h4 class="recipe-name">{{ recipe.name }}</h4>
-            <p class="recipe-desc">{{ recipe.desc }}</p>
+            <h4 class="recipe-name">{{ recipe.nombre }}</h4>
+            <p class="recipe-desc">{{ recipe.descripcion }}</p>
             <div class="recipe-meta">
-              <span class="meta-item">⏱ {{ recipe.time }} min</span>
-              <span class="meta-item">🔥 {{ recipe.kcal }} kcal</span>
+              <span class="meta-item">⏱ {{ recipe.tiempo_min }} min</span>
               <span class="meta-item">👤 {{ recipe.porciones }} porciones</span>
             </div>
-            <div class="nutrients-mini">
-              <div class="nm-item" v-for="n in recipe.nutrients" :key="n.label">
-                <div class="nm-bar" :style="{ width: n.pct + '%', background: n.color }"></div>
-                <span>{{ n.label }} {{ n.val }}</span>
-              </div>
-            </div>
           </div>
         </div>
-      </div>
-
-      <!-- CTA Supabase note -->
-      <div class="supabase-note card">
-        <div class="supa-header">
-          <span>⚡</span>
-          <h4>Versión de producción</h4>
-        </div>
-        <p>Las recetas se cargarán desde <strong>Supabase</strong> filtrando por:</p>
-        <ul class="supa-list">
-          <li>✅ Ingredientes en semáforo verde/amarillo para tu perfil</li>
-          <li>✅ Calorías cercanas a tu TDEE ({{ tdee }} kcal)</li>
-          <li>✅ Exclusión de alérgenos según padecimientos</li>
-          <li>✅ Distribución de macronutrimentos personalizada</li>
-        </ul>
       </div>
     </template>
 
-    <!-- Recipe detail modal -->
+    <!-- Modal detalle de receta -->
     <transition name="modal">
       <div v-if="selectedRecipe" class="modal-overlay" @click.self="selectedRecipe = null">
         <div class="modal-card">
-          <div class="modal-img" :style="{ background: selectedRecipe.color }">
-            <button class="modal-close" @click="selectedRecipe = null">✕</button>
-            <span class="modal-emoji">{{ selectedRecipe.emoji }}</span>
-          </div>
-          <div class="modal-body">
-            <h3>{{ selectedRecipe.name }}</h3>
-            <p class="modal-desc">{{ selectedRecipe.desc }}</p>
-            <div class="modal-meta">
-              <div class="meta-stat"><span>⏱</span><strong>{{ selectedRecipe.time }} min</strong><small>Tiempo</small></div>
-              <div class="meta-stat"><span>🔥</span><strong>{{ selectedRecipe.kcal }} kcal</strong><small>Por porción</small></div>
-              <div class="meta-stat"><span>👤</span><strong>{{ selectedRecipe.porciones }}</strong><small>Porciones</small></div>
+
+          <!-- Imagen modal -->
+          <div class="modal-img-wrap">
+            <img
+              v-if="selectedRecipe.imagen_url"
+              :src="selectedRecipe.imagen_url"
+              :alt="selectedRecipe.nombre"
+              class="modal-photo"
+              @error="onImgError($event)"
+            />
+            <div v-else class="modal-img-fallback">
+              <span>{{ mealEmoji(mealTab) }}</span>
             </div>
-            <div class="modal-section">
+            <button class="modal-close" @click="selectedRecipe = null">✕</button>
+          </div>
+
+          <div class="modal-body">
+            <h3>{{ selectedRecipe.nombre }}</h3>
+            <p class="modal-desc">{{ selectedRecipe.descripcion }}</p>
+
+            <div class="modal-meta">
+              <div class="meta-stat">
+                <span>⏱</span>
+                <strong>{{ selectedRecipe.tiempo_min }} min</strong>
+                <small>Tiempo</small>
+              </div>
+              <div class="meta-stat">
+                <span>👤</span>
+                <strong>{{ selectedRecipe.porciones }}</strong>
+                <small>Porciones</small>
+              </div>
+            </div>
+
+            <!-- Ingredientes -->
+            <div v-if="selectedRecipe.ingredientes?.length" class="modal-section">
               <h5>🛒 Ingredientes</h5>
               <ul class="ingredient-list">
-                <li v-for="ing in selectedRecipe.ingredients" :key="ing.name" class="ingredient-item">
-                  <span class="ing-dot" :class="ing.status"></span>
-                  <span>{{ ing.amount }} de {{ ing.name }}</span>
-                  <span class="ing-status-label" :class="ing.status">{{ statusLabel(ing.status) }}</span>
+                <li v-for="ing in selectedRecipe.ingredientes" :key="ing.id" class="ingredient-item">
+                  <span class="ing-qty">{{ ing.cantidad }} {{ ing.unidad }}</span>
+                  <span class="ing-name">{{ ing.notas || ing.alimento_nombre || '' }}</span>
                 </li>
               </ul>
             </div>
-            <div class="modal-section">
+
+            <!-- Instrucciones -->
+            <div v-if="selectedRecipe.instrucciones" class="modal-section">
               <h5>👨‍🍳 Preparación</h5>
               <ol class="steps-list">
-                <li v-for="(step, i) in selectedRecipe.steps" :key="i">{{ step }}</li>
+                <li v-for="(step, i) in parsedSteps(selectedRecipe.instrucciones)" :key="i">{{ step }}</li>
               </ol>
             </div>
           </div>
@@ -133,14 +156,35 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useUserStore } from '@/stores/userStore'
+import { supabase } from '@/services/supabase'
 
 const store = useUserStore()
 const mealTab = ref('desayuno')
 const selectedRecipe = ref(null)
+const recetas = ref([])
+const loading = ref(false)
+const error = ref(null)
 
-const condLabels = { celiaquía: '🌾 Celiaquía', hipertensión: '💊 Hipertensión', diabetes: '🩸 Diabetes' }
+// ─── Mapeo de categoría por receta_id según los datos de la BD ────────────────
+// Desayunos: 1(galletas), 2(licuado), 9(smoothie bowl), 10(huevos), 11(avena)
+// Comidas:   3(sopa pollo), 7(salmón), 8(pechuga horno), 13(bowl pollo), 14(ensalada atún)
+// Cenas:     4(crema brócoli), 6(lentejas), 12(caprese)
+// Snacks:    5(tacos frijoles)
+const CATEGORIA_MAP = {
+  1: 'desayuno', 2: 'desayuno', 9: 'desayuno', 10: 'desayuno', 11: 'desayuno',
+  3: 'comida', 7: 'comida', 8: 'comida', 13: 'comida', 14: 'comida',
+  4: 'cena', 6: 'cena', 12: 'cena',
+  5: 'snack',
+}
+
+const condLabels = {
+  celiaquía: '🌾 Celiaquía',
+  hipertensión: '💊 Hipertensión',
+  diabetes: '🩸 Diabetes',
+}
+
 const activeConditions = computed(() => {
   const c = store.profile?.condiciones || {}
   return Object.fromEntries(Object.entries(c).filter(([, v]) => v))
@@ -157,130 +201,99 @@ const tdee = computed(() => Math.round(tmb.value * parseFloat(store.profile?.act
 
 const mealTypes = [
   { key: 'desayuno', label: 'Desayuno', icon: '🌅' },
-  { key: 'comida', label: 'Comida', icon: '☀️' },
-  { key: 'cena', label: 'Cena', icon: '🌙' },
-  { key: 'snack', label: 'Snack', icon: '🍎' },
+  { key: 'comida',   label: 'Comida',   icon: '☀️' },
+  { key: 'cena',     label: 'Cena',     icon: '🌙' },
+  { key: 'snack',    label: 'Snack',    icon: '🍎' },
 ]
 
-const statusLabel = (s) => ({ verde: 'Libre', amarillo: 'Moderar', rojo: 'Evitar' }[s] || '')
+const mealEmoji = (key) =>
+  ({ desayuno: '🌅', comida: '☀️', cena: '🌙', snack: '🍎' }[key] || '🍽️')
 
-const allRecipes = [
-  {
-    id: 1, meal: 'desayuno', name: 'Avena con frutas y miel', emoji: '🥣',
-    color: 'linear-gradient(135deg, #FFB800, #FF6B35)',
-    desc: 'Tazón de avena cremosa con fresas, plátano y un toque de miel de abeja.',
-    time: 10, kcal: 320, porciones: 1,
-    badges: ['Sin gluten*', 'Alto en fibra'],
-    nutrients: [
-      { label: 'Prot', val: '12g', pct: 40, color: '#4361EE' },
-      { label: 'Carbs', val: '52g', pct: 75, color: '#FFB800' },
-      { label: 'Grasas', val: '6g', pct: 25, color: '#FF4757' },
-    ],
-    ingredients: [
-      { name: 'Avena sin gluten', amount: '½ taza', status: 'verde' },
-      { name: 'Fresas', amount: '½ taza', status: 'verde' },
-      { name: 'Plátano', amount: '½ pieza', status: 'amarillo' },
-      { name: 'Miel', amount: '1 cdita', status: 'amarillo' },
-      { name: 'Leche descremada', amount: '1 taza', status: 'verde' },
-    ],
-    steps: [
-      'Calienta la leche a fuego medio en una olla.',
-      'Agrega la avena y cocina por 5 min, moviendo constantemente.',
-      'Retira del fuego y vierte en un tazón.',
-      'Añade las frutas y la miel. ¡Listo para servir!',
-    ]
-  },
-  {
-    id: 2, meal: 'comida', name: 'Ensalada de pollo a la plancha', emoji: '🥗',
-    color: 'linear-gradient(135deg, #00C896, #4361EE)',
-    desc: 'Pechuga de pollo a la plancha sobre cama de lechuga, jitomate y pepino, con aderezo de limón.',
-    time: 20, kcal: 380, porciones: 2,
-    badges: ['Sin gluten', 'Bajo en sodio', 'Bajo IG'],
-    nutrients: [
-      { label: 'Prot', val: '35g', pct: 85, color: '#4361EE' },
-      { label: 'Carbs', val: '18g', pct: 35, color: '#FFB800' },
-      { label: 'Grasas', val: '12g', pct: 40, color: '#FF4757' },
-    ],
-    ingredients: [
-      { name: 'Pechuga de pollo', amount: '150g', status: 'verde' },
-      { name: 'Lechuga romana', amount: '2 tazas', status: 'verde' },
-      { name: 'Jitomate', amount: '1 pieza', status: 'verde' },
-      { name: 'Pepino', amount: '½ pieza', status: 'verde' },
-      { name: 'Aceite de oliva', amount: '1 cdita', status: 'amarillo' },
-      { name: 'Limón', amount: '1 pieza', status: 'verde' },
-    ],
-    steps: [
-      'Sazona el pollo con pimienta y ajo en polvo (sin sal extra).',
-      'Cocina a la plancha 6 min por cada lado hasta dorar.',
-      'Corta en tiras y reserva.',
-      'Mezcla las verduras en un tazón grande.',
-      'Agrega el pollo, rocía con aceite y jugo de limón.',
-    ]
-  },
-  {
-    id: 3, meal: 'cena', name: 'Sopa de lentejas con verduras', emoji: '🍲',
-    color: 'linear-gradient(135deg, #FF6B35, #FFB800)',
-    desc: 'Sopa nutritiva de lentejas con zanahoria, apio y espinaca. Alta en proteína vegetal y fibra.',
-    time: 35, kcal: 290, porciones: 4,
-    badges: ['Vegano', 'Alto en fibra', 'Sin gluten'],
-    nutrients: [
-      { label: 'Prot', val: '18g', pct: 55, color: '#4361EE' },
-      { label: 'Carbs', val: '40g', pct: 60, color: '#FFB800' },
-      { label: 'Grasas', val: '4g', pct: 15, color: '#FF4757' },
-    ],
-    ingredients: [
-      { name: 'Lentejas', amount: '1 taza', status: 'verde' },
-      { name: 'Zanahoria', amount: '1 pieza', status: 'verde' },
-      { name: 'Apio', amount: '2 ramas', status: 'verde' },
-      { name: 'Espinaca', amount: '1 taza', status: 'verde' },
-      { name: 'Caldo de verduras bajo en sodio', amount: '4 tazas', status: 'amarillo' },
-    ],
-    steps: [
-      'Lava y escurre las lentejas.',
-      'En una olla, sofríe zanahoria y apio 3 min.',
-      'Agrega las lentejas y el caldo. Lleva a hervor.',
-      'Cocina 25 min a fuego bajo hasta que las lentejas estén tiernas.',
-      'Añade espinaca 2 min antes de apagar.',
-    ]
-  },
-  {
-    id: 4, meal: 'snack', name: 'Jícama con chile y limón', emoji: '🥒',
-    color: 'linear-gradient(135deg, #4361EE, #00C896)',
-    desc: 'Bastones de jícama fresca con chile piquín y limón. Snack crujiente, bajo en calorías.',
-    time: 5, kcal: 80, porciones: 1,
-    badges: ['Sin gluten', 'Muy bajo IG', 'Bajo sodio'],
-    nutrients: [
-      { label: 'Prot', val: '2g', pct: 10, color: '#4361EE' },
-      { label: 'Carbs', val: '18g', pct: 30, color: '#FFB800' },
-      { label: 'Grasas', val: '0g', pct: 2, color: '#FF4757' },
-    ],
-    ingredients: [
-      { name: 'Jícama', amount: '1 taza', status: 'verde' },
-      { name: 'Chile piquín', amount: '1 cdita', status: 'verde' },
-      { name: 'Limón', amount: '1 pieza', status: 'verde' },
-    ],
-    steps: [
-      'Pela y corta la jícama en bastones.',
-      'Exprime el limón sobre la jícama.',
-      'Espolvorea chile piquín al gusto.',
-    ]
-  },
-]
+const filteredRecipes = computed(() =>
+  recetas.value.filter(r => r.categoria === mealTab.value)
+)
 
-const filteredRecipes = computed(() => allRecipes.filter(r => r.meal === mealTab.value))
+// ─── Carga desde Supabase ──────────────────────────────────────────────────────
+async function loadRecetas() {
+  loading.value = true
+  error.value = null
+
+  try {
+    // 1) Cargar recetas
+    const { data: recetasData, error: recetasErr } = await supabase
+      .from('recetas')
+      .select('*')
+      .eq('activa', true)
+      .order('id')
+
+    if (recetasErr) throw recetasErr
+
+    // 2) Cargar ingredientes de todas las recetas
+    const { data: ingredientesData, error: ingErr } = await supabase
+      .from('receta_ingredientes')
+      .select('*')
+      .order('id')
+
+    if (ingErr) throw ingErr
+
+    // 3) Agrupar ingredientes por receta_id
+    const ingPorReceta = {}
+    for (const ing of ingredientesData || []) {
+      if (!ingPorReceta[ing.receta_id]) ingPorReceta[ing.receta_id] = []
+      ingPorReceta[ing.receta_id].push(ing)
+    }
+
+    // 4) Combinar y asignar categoría
+    recetas.value = (recetasData || []).map(r => ({
+      ...r,
+      categoria: CATEGORIA_MAP[r.id] || 'comida',
+      ingredientes: ingPorReceta[r.id] || [],
+    }))
+  } catch (e) {
+    console.error('Error cargando recetas:', e)
+    error.value = 'No se pudieron cargar las recetas. Verifica tu conexión.'
+  } finally {
+    loading.value = false
+  }
+}
+
+function openRecipe(recipe) {
+  selectedRecipe.value = recipe
+}
+
+// Parsea instrucciones que vienen como string numerado "1. ... 2. ..."
+function parsedSteps(instrucciones) {
+  if (!instrucciones) return []
+  return instrucciones
+    .split(/\d+\.\s+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+}
+
+function onImgError(e) {
+  e.target.style.display = 'none'
+  e.target.nextElementSibling?.style && (e.target.nextElementSibling.style.display = 'flex')
+}
+
+onMounted(() => {
+  if (store.hasProfile) loadRecetas()
+})
 </script>
 
 <style scoped>
 .recetas-page { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
 
+/* ── Header ── */
 .recetas-header h2 { font-size: 22px; font-weight: 800; }
-.recetas-header p { font-size: 14px; color: var(--gray-500); margin-top: 4px; }
+.recetas-header p  { font-size: 14px; color: var(--gray-500); margin-top: 4px; }
 
+/* ── Sin perfil ── */
 .no-profile-card { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding: 40px 24px; }
 .np-icon { font-size: 48px; }
 .no-profile-card h3 { font-size: 18px; font-weight: 700; }
-.no-profile-card p { font-size: 14px; color: var(--gray-500); }
+.no-profile-card p  { font-size: 14px; color: var(--gray-500); }
 
+/* ── Objetivo calórico ── */
 .caloric-target {
   display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
   background: linear-gradient(135deg, var(--green-light), var(--blue-light));
@@ -289,9 +302,10 @@ const filteredRecipes = computed(() => allRecipes.filter(r => r.meal === mealTab
 .target-icon { font-size: 32px; }
 .target-info { flex: 1; }
 .target-info h4 { font-size: 15px; font-weight: 600; }
-.target-info p { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+.target-info p  { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
 .target-badges { display: flex; flex-wrap: wrap; gap: 6px; }
 
+/* ── Tabs ── */
 .meal-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
 .meal-tab {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
@@ -303,47 +317,45 @@ const filteredRecipes = computed(() => allRecipes.filter(r => r.meal === mealTab
 .meal-tab span:first-child { font-size: 20px; }
 .meal-tab.active { background: white; border-color: var(--green); color: var(--green); box-shadow: var(--shadow-sm); }
 
-.coming-soon-bar {
-  display: flex; align-items: flex-start; gap: 10px;
-  background: var(--blue-light); border: 1px solid var(--blue);
-  border-radius: var(--radius-md); padding: 12px 14px;
-  font-size: 13px; color: var(--blue);
+/* ── Estados ── */
+.loading-state { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 40px; color: var(--gray-500); font-size: 14px; }
+.spinner {
+  width: 32px; height: 32px; border: 3px solid var(--gray-200);
+  border-top-color: var(--green); border-radius: 50%;
+  animation: spin .7s linear infinite;
 }
-.coming-soon-bar span { font-size: 18px; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
+.error-state { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 32px; text-align: center; }
+.error-state span { font-size: 32px; }
+.error-state p { font-size: 14px; color: var(--gray-500); }
+
+.empty-state { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 40px; text-align: center; }
+.empty-state span { font-size: 40px; }
+.empty-state p { font-size: 14px; color: var(--gray-500); }
+
+/* ── Grid de recetas ── */
 .recipe-grid { display: flex; flex-direction: column; gap: 16px; }
 .recipe-card { padding: 0; overflow: hidden; cursor: pointer; transition: transform .2s, box-shadow .2s; }
 .recipe-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
-.recipe-img {
-  position: relative; padding: 24px; min-height: 100px;
-  display: flex; align-items: flex-end;
+
+/* Imagen */
+.recipe-img { position: relative; width: 100%; height: 180px; overflow: hidden; background: var(--gray-100); }
+.recipe-photo { width: 100%; height: 100%; object-fit: cover; display: block; }
+.recipe-img-fallback {
+  width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--green-light), var(--blue-light));
+  font-size: 52px;
 }
-.recipe-emoji { font-size: 40px; line-height: 1; }
-.recipe-badges { position: absolute; top: 12px; right: 12px; display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
-.r-badge {
-  background: rgba(0,0,0,.4); color: white; font-size: 10px; font-weight: 600;
-  padding: 3px 8px; border-radius: 99px; backdrop-filter: blur(4px);
-}
-.recipe-body { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-.recipe-name { font-size: 17px; font-weight: 700; }
-.recipe-desc { font-size: 13px; color: var(--gray-500); line-height: 1.5; }
-.recipe-meta { display: flex; flex-wrap: wrap; gap: 10px; }
-.meta-item { font-size: 12px; font-weight: 600; color: var(--gray-500); }
 
-.nutrients-mini { display: flex; flex-direction: column; gap: 5px; }
-.nm-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--gray-500); }
-.nm-bar { height: 4px; border-radius: 99px; min-width: 4px; }
+/* Cuerpo */
+.recipe-body   { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.recipe-name   { font-size: 17px; font-weight: 700; }
+.recipe-desc   { font-size: 13px; color: var(--gray-500); line-height: 1.5; }
+.recipe-meta   { display: flex; flex-wrap: wrap; gap: 10px; }
+.meta-item     { font-size: 12px; font-weight: 600; color: var(--gray-500); }
 
-/* Supabase note */
-.supabase-note { display: flex; flex-direction: column; gap: 10px; background: var(--gray-900); color: white; }
-.supa-header { display: flex; align-items: center; gap: 10px; }
-.supa-header span { font-size: 24px; }
-.supa-header h4 { font-size: 16px; font-weight: 700; }
-.supabase-note p { font-size: 13px; color: var(--gray-400); }
-.supa-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-.supa-list li { font-size: 13px; color: var(--gray-300); }
-
-/* Modal */
+/* ── Modal ── */
 .modal-overlay {
   position: fixed; inset: 0; z-index: 500;
   background: rgba(0,0,0,.5); backdrop-filter: blur(4px);
@@ -354,41 +366,46 @@ const filteredRecipes = computed(() => allRecipes.filter(r => r.meal === mealTab
   background: white; border-radius: 24px 24px 0 0;
   overflow: hidden; max-height: 92vh; overflow-y: auto;
 }
-.modal-img {
-  position: relative; padding: 40px 24px 24px;
-  display: flex; align-items: flex-end;
+
+.modal-img-wrap { position: relative; width: 100%; height: 220px; overflow: hidden; background: var(--gray-100); }
+.modal-photo    { width: 100%; height: 100%; object-fit: cover; display: block; }
+.modal-img-fallback {
+  width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--green-light), var(--blue-light));
+  font-size: 64px;
 }
 .modal-close {
   position: absolute; top: 16px; right: 16px;
-  background: rgba(0,0,0,.3); border: none; color: white;
+  background: rgba(0,0,0,.35); border: none; color: white;
   width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
 }
-.modal-emoji { font-size: 52px; }
-.modal-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+.modal-body    { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
 .modal-body h3 { font-size: 22px; font-weight: 800; }
-.modal-desc { font-size: 14px; color: var(--gray-500); line-height: 1.6; }
-.modal-meta { display: flex; justify-content: space-around; background: var(--gray-50); border-radius: var(--radius-md); padding: 16px; }
-.meta-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
-.meta-stat span { font-size: 20px; }
-.meta-stat strong { font-size: 16px; font-weight: 700; }
-.meta-stat small { font-size: 11px; color: var(--gray-400); }
-.modal-section { display: flex; flex-direction: column; gap: 10px; }
+.modal-desc    { font-size: 14px; color: var(--gray-500); line-height: 1.6; }
+
+.modal-meta {
+  display: flex; justify-content: space-around;
+  background: var(--gray-50); border-radius: var(--radius-md); padding: 16px;
+}
+.meta-stat          { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+.meta-stat span     { font-size: 20px; }
+.meta-stat strong   { font-size: 16px; font-weight: 700; }
+.meta-stat small    { font-size: 11px; color: var(--gray-400); }
+
+.modal-section   { display: flex; flex-direction: column; gap: 10px; }
 .modal-section h5 { font-size: 15px; font-weight: 700; }
 
 .ingredient-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-.ingredient-item { display: flex; align-items: center; gap: 10px; font-size: 14px; }
-.ing-dot { flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%; }
-.ing-dot.verde { background: var(--green); }
-.ing-dot.amarillo { background: var(--yellow); }
-.ing-dot.rojo { background: var(--red); }
-.ing-status-label { margin-left: auto; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; }
-.ing-status-label.verde { background: var(--green-light); color: var(--green-dark); }
-.ing-status-label.amarillo { background: var(--yellow-light); color: #7A5800; }
-.ing-status-label.rojo { background: var(--red-light); color: var(--red); }
+.ingredient-item { display: flex; align-items: baseline; gap: 8px; font-size: 14px; }
+.ing-qty  { flex-shrink: 0; font-weight: 600; color: var(--green-dark); min-width: 60px; font-size: 12px; }
+.ing-name { color: var(--gray-700); line-height: 1.4; }
 
 .steps-list { list-style: decimal; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
 .steps-list li { font-size: 14px; color: var(--gray-700); line-height: 1.5; }
 
+/* ── Transición modal ── */
 .modal-enter-active, .modal-leave-active { transition: opacity .3s ease; }
-.modal-enter-from, .modal-leave-to { opacity: 0; }
+.modal-enter-from,   .modal-leave-to     { opacity: 0; }
 </style>

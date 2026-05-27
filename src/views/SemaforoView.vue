@@ -21,7 +21,7 @@
     </div>
 
     <template v-else>
-      <!-- Loading state (heuristic #1: system status) -->
+      <!-- Loading state -->
       <div v-if="loadingData" class="loading-section" role="status" aria-label="Cargando alimentos">
         <div class="loading-semaforo">
           <div class="light red blinking"></div>
@@ -45,7 +45,14 @@
       <template v-else>
         <!-- Filters -->
         <div class="filters-row">
-          <input v-model="search" type="search" class="input search-input" placeholder="🔍 Buscar alimento..." />
+          <input
+            v-model="search"
+            type="search"
+            class="input search-input"
+            id="semaforo-search"
+            placeholder="🔍 Buscar alimento... (Ctrl+B)"
+            aria-label="Buscar alimento"
+          />
           <select v-model="grupoFilter" class="input select-small">
             <option value="">Todos los grupos</option>
             <option v-for="g in grupos" :key="g.id" :value="g.id">{{ g.nombre }}</option>
@@ -155,7 +162,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, reactive, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, reactive, watch } from 'vue'
 import { useUserStore } from '@/stores/userStore'
 import { useFoodData } from '@/composables/useFoodData'
 import StatusToast from '@/components/StatusToast.vue'
@@ -229,7 +236,6 @@ async function loadData() {
   dataError.value = ''
   loadProgress.value = 0
 
-  // Simulate incremental progress
   const ticker = setInterval(() => {
     if (loadProgress.value < 85) loadProgress.value += 15
   }, 200)
@@ -250,7 +256,16 @@ async function loadData() {
   }
 }
 
-onMounted(loadData)
+// Escape global → cerrar modal
+function onCloseModal() { selected.value = null }
+
+onMounted(() => {
+  loadData()
+  window.addEventListener('foodlight:close-modal', onCloseModal)
+})
+onUnmounted(() => {
+  window.removeEventListener('foodlight:close-modal', onCloseModal)
+})
 </script>
 
 <style scoped>
@@ -278,10 +293,7 @@ onMounted(loadData)
   display: flex; flex-direction: column; align-items: center; gap: 8px;
   background: #1a1a2e; padding: 16px 20px; border-radius: var(--radius-md);
 }
-.light {
-  width: 40px; height: 40px; border-radius: 50%; opacity: .3;
-  transition: opacity .3s;
-}
+.light { width: 40px; height: 40px; border-radius: 50%; opacity: .3; transition: opacity .3s; }
 .light.red { background: var(--red); }
 .light.yellow { background: var(--yellow); }
 .light.green { background: var(--green); }
