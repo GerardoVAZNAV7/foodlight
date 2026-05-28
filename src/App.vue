@@ -13,6 +13,13 @@
           <span class="sidebar-label">Semáforo</span>
           <kbd class="shortcut-hint">Alt+S</kbd>
         </router-link>
+        
+        <router-link to="/diario" class="sidebar-link" active-class="active">
+          <span class="sidebar-icon">📅</span>
+          <span class="sidebar-label">Diario</span>
+          <kbd class="shortcut-hint">Alt+D</kbd>
+        </router-link>
+
         <router-link to="/perfil" class="sidebar-link" active-class="active">
           <span class="sidebar-icon">👤</span>
           <span class="sidebar-label">Perfil</span>
@@ -109,11 +116,17 @@ function onKeydown(e) {
 
   if (!e.altKey) return
 
-  switch (e.key) {
+ switch (e.key) {
     case 's':
       e.preventDefault()
       router.push('/semaforo')
       showShortcut('🚦 Semáforo')
+      break
+    // Agrega este nuevo caso para el Diario:
+    case 'd':
+      e.preventDefault()
+      router.push('/diario')
+      showShortcut('📅 Diario')
       break
     case 'p':
       e.preventDefault()

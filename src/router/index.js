@@ -8,8 +8,9 @@ const routes = [
   { path: '/perfil', component: () => import('@/views/ProfileView.vue') },
   { path: '/semaforo', component: () => import('@/views/SemaforoView.vue') },
   { path: '/recetas', component: () => import('@/views/RecetasView.vue') },
+  // Agrega esta nueva línea:
+  { path: '/diario', component: () => import('@/views/DiarioView.vue') }, 
 ]
-
 const router = createRouter({
   history: createWebHistory(),
   routes,

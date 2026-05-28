@@ -57,7 +57,10 @@
       <!-- Sin recetas para esta categoría -->
       <div v-else-if="recetas.length === 0" class="empty-state card">
         <span>🍽️</span>
-        <p>No hay recetas disponibles para esta categoría aún.</p>
+        <p>No hay recetas disponibles para esta categoría.</p>
+        <small v-if="hasActiveConditions" class="empty-hint">
+          Algunas recetas fueron ocultadas porque contienen ingredientes que debes evitar según tu perfil.
+        </small>
       </div>
 
       <!-- Grid de recetas -->
@@ -157,8 +160,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { useUserStore } from '@/stores/userStore'
 import { supabase } from '@/services/supabase'
+import { useFoodData } from '@/composables/useFoodData'
 
 const store = useUserStore()
+const { getAlimentos, clasificarAlimento } = useFoodData()
+
 const mealTab = ref('desayuno')
 const selectedRecipe = ref(null)
 const recetas = ref([])
@@ -175,6 +181,8 @@ const activeConditions = computed(() => {
   const c = store.profile?.condiciones || {}
   return Object.fromEntries(Object.entries(c).filter(([, v]) => v))
 })
+
+const hasActiveConditions = computed(() => Object.keys(activeConditions.value).length > 0)
 
 const tmb = computed(() => {
   const { peso, estatura, edad, sexo } = store.profile || {}
@@ -194,7 +202,31 @@ const mealTypes = [
 
 const currentMeal = computed(() => mealTypes.find(m => m.key === mealTab.value) || mealTypes[0])
 
-// ── Carga filtrando por tipo_comida directo en Supabase ──────────────────────
+// ── Normaliza texto para comparar: minúsculas, sin acentos, sin espacios extra ──
+function normalizar(str) {
+  if (!str) return ''
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+}
+
+// ── Determina si una receta tiene algún ingrediente que clasifica como rojo ──
+function recetaTieneIngredienteRojo(ingredientes, alimentoMap, condiciones) {
+  return ingredientes.some(ing => {
+    // Nombre del ingrediente: preferir alimento_nombre, fallback a notas
+    const nombreIng = normalizar(ing.alimento_nombre || ing.notas || '')
+    if (!nombreIng) return false
+
+    // Buscar en el mapa de alimentos por nombre normalizado
+    const alimento = alimentoMap.get(nombreIng)
+    if (!alimento) return false
+
+    return clasificarAlimento(alimento, condiciones) === 'rojo'
+  })
+}
+
 async function loadRecetas(tipo) {
   loading.value = true
   error.value = null
@@ -210,13 +242,9 @@ async function loadRecetas(tipo) {
       .order('id')
 
     if (recetasErr) throw recetasErr
+    if (!recetasData?.length) return
 
-    if (!recetasData?.length) {
-      recetas.value = []
-      return
-    }
-
-    // 2) Ingredientes solo de esas recetas
+    // 2) Ingredientes de esas recetas
     const ids = recetasData.map(r => r.id)
     const { data: ingredientesData, error: ingErr } = await supabase
       .from('receta_ingredientes')
@@ -233,11 +261,27 @@ async function loadRecetas(tipo) {
       ingPorReceta[ing.receta_id].push(ing)
     }
 
-    // 4) Combinar
-    recetas.value = recetasData.map(r => ({
+    // 4) Construir mapa de alimentos por nombre normalizado (usa caché del semáforo)
+    const alimentosDB = await getAlimentos()
+    const alimentoMap = new Map(alimentosDB.map(a => [normalizar(a.nombre), a]))
+
+    // 5) Combinar ingredientes con recetas
+    const recetasCombinadas = recetasData.map(r => ({
       ...r,
       ingredientes: ingPorReceta[r.id] || [],
     }))
+
+    // 6) Filtrar: si el usuario tiene padecimientos, excluir recetas con ingredientes rojos
+    const condiciones = store.profile?.condiciones || {}
+
+    if (hasActiveConditions.value) {
+      recetas.value = recetasCombinadas.filter(
+        r => !recetaTieneIngredienteRojo(r.ingredientes, alimentoMap, condiciones)
+      )
+    } else {
+      recetas.value = recetasCombinadas
+    }
+
   } catch (e) {
     console.error('Error cargando recetas:', e)
     error.value = 'No se pudieron cargar las recetas. Verifica tu conexión.'
@@ -327,6 +371,7 @@ onMounted(() => {
 .empty-state { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 40px; text-align: center; }
 .empty-state span { font-size: 40px; }
 .empty-state p { font-size: 14px; color: var(--gray-500); }
+.empty-hint { font-size: 12px; color: var(--gray-400); line-height: 1.5; max-width: 280px; }
 
 /* ── Grid de recetas ── */
 .recipe-grid { display: flex; flex-direction: column; gap: 16px; }
