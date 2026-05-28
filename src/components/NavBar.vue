@@ -58,7 +58,7 @@ const fullEmail = computed(() => {
   return store.authUser?.email || store.profile?.email || ''
 })
 
-// Extrae el texto antes del '@' para que diga "Hola gvazquez020705!"
+// Extrae el texto antes del '@' para que diga "Hola Y AQUI EL NOMBRE DEL USUARIO!"
 const username = computed(() => {
   const email = fullEmail.value
   if (email && email.includes('@')) {

@@ -50,7 +50,7 @@
             type="search"
             class="input search-input"
             id="semaforo-search"
-            placeholder="🔍 Buscar alimento... (Ctrl+B)"
+            placeholder="🔍 Buscar alimento... (Alt + B)"
             aria-label="Buscar alimento"
           />
           <select v-model="grupoFilter" class="input select-small">
@@ -256,7 +256,6 @@ async function loadData() {
   }
 }
 
-// Escape global → cerrar modal
 function onCloseModal() { selected.value = null }
 
 onMounted(() => {
@@ -269,6 +268,9 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* ═══════════════════════════════════════════════
+   ESTILOS BASE (desktop) — idénticos al original
+   ═══════════════════════════════════════════════ */
 .semaforo-page { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
 
 .semaforo-header h2 { font-size: 22px; font-weight: 800; }
@@ -452,4 +454,139 @@ onUnmounted(() => {
 
 /* No-profile */
 .error-card { background: white; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 32px 24px; }
+
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE MÓVIL — solo afecta pantallas ≤ 480px
+   El desktop queda 100% idéntico al original
+   ═══════════════════════════════════════════════ */
+@media (max-width: 480px) {
+
+  /* Página */
+  .semaforo-page {
+    padding: 14px;
+    gap: 12px;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+
+  /* Header */
+  .semaforo-header h2 { font-size: 19px; }
+  .semaforo-header p  { font-size: 12px; }
+
+  /* Filtros: búsqueda arriba, select abajo (columna) */
+  .filters-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .select-small {
+    flex: unset;
+    width: 100%;
+    /* font-size 16px evita el zoom automático de iOS al hacer focus */
+    font-size: 16px;
+  }
+  /* Igual para el input de búsqueda */
+  .search-input { font-size: 16px; }
+
+  /* Pills de leyenda: más compactas */
+  .legend-pill {
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 4px;
+    font-size: 11px;
+  }
+  .legend-pill .pill-dot { width: 8px; height: 8px; }
+  .pill-count { font-size: 10px; padding: 1px 5px; }
+
+  /* Semáforo visual:
+     El semáforo queda igual pero más pequeño.
+     El resumen pasa a columna debajo del semáforo. */
+  .semaforo-visual {
+    flex-direction: column;
+    gap: 14px;
+    align-items: stretch;
+  }
+  /* Semáforo centrado horizontalmente */
+  .traffic-light {
+    display: flex;
+    justify-content: center;
+  }
+  .tl-body {
+    /* Horizontal en móvil: los 3 focos en fila */
+    flex-direction: row;
+    gap: 14px;
+    padding: 14px 20px;
+    border-radius: 99px;
+  }
+  .tl-light {
+    width: 52px;
+    height: 52px;
+    font-size: 13px;
+  }
+
+  /* Resumen ocupa todo el ancho */
+  .semaforo-summary { gap: 10px; }
+  .summary-row strong { font-size: 13px; }
+  .summary-row p { font-size: 11px; }
+  .count-badge { font-size: 12px; padding: 3px 8px; }
+
+  /* Cards de alimentos: target táctil más alto */
+  .food-card {
+    padding: 14px 12px;
+    min-height: 56px;
+    /* Sin hover translate en táctil */
+    transition: background .12s;
+  }
+  .food-card:hover { transform: none; }
+  .food-card:active { background: var(--gray-50); }
+  .food-name { font-size: 13px; }
+  .food-group { font-size: 10px; }
+  .food-kcal { font-size: 12px; }
+
+  /* Paginación: botones más grandes */
+  .pagination { gap: 10px; }
+  .pagination .btn { padding: 10px 16px; font-size: 13px; min-height: 44px; }
+  .pagination span { font-size: 13px; }
+
+  /* Modal: botón cerrar más grande, modal más alto */
+  .modal-card {
+    padding: 20px 18px;
+    gap: 12px;
+    max-height: 88dvh;
+    /* Handle drag visual */
+    padding-top: 0;
+  }
+  /* Handle visual tipo bottom-sheet */
+  .modal-card::before {
+    content: '';
+    display: block;
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--gray-200);
+    margin: 14px auto 8px;
+    flex-shrink: 0;
+  }
+  .modal-close {
+    width: 36px;
+    height: 36px;
+    font-size: 15px;
+  }
+  .modal-title { font-size: 18px; }
+  .modal-status { font-size: 12px; padding: 7px 12px; }
+  .n-val { font-size: 16px; }
+  .n-lbl { font-size: 10px; }
+  .nutrients-grid { gap: 7px; }
+  .nutrient { padding: 10px 6px; }
+  .modal-serving {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    font-size: 13px;
+  }
+
+  /* Modal overlay con safe area para iPhone home bar */
+  .modal-overlay {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
 </style>

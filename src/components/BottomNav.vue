@@ -12,6 +12,10 @@
       <span class="nav-icon">🍽️</span>
       <span class="nav-label">Recetas</span>
     </router-link>
+    <router-link to="/diario" class="nav-item" active-class="active">
+      <span class="nav-icon">🗓️</span>
+      <span class="nav-label">Diario</span>
+    </router-link>
   </nav>
 </template>
 
