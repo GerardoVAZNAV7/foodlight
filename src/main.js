@@ -5,6 +5,11 @@ import router from './router'
 import './assets/global.css'
 
 const app = createApp(App)
-app.use(createPinia())
+const pinia = createPinia()
+app.use(pinia)
 app.use(router)
-app.mount('#app')
+
+// Inicializar sesión de Supabase antes de montar
+import { useUserStore } from '@/stores/userStore'
+const store = useUserStore()
+store.init().then(() => app.mount('#app'))

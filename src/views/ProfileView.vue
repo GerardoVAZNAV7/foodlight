@@ -232,11 +232,15 @@ async function saveProfile() {
   }
   saving.value = true
   showToast('Guardando perfil...', 'loading')
-  await new Promise(r => setTimeout(r, 700))
-  store.saveProfile({ ...form })
-  isDirty.value = false
-  saving.value = false
-  showToast('¡Perfil actualizado correctamente! ✅', 'success')
+  try {
+    await store.saveProfile({ ...form })   // <-- ahora es async
+    isDirty.value = false
+    showToast('¡Perfil actualizado correctamente! ✅', 'success')
+  } catch (e) {
+    showToast(e.message, 'error')
+  } finally {
+    saving.value = false
+  }
 }
 </script>
 
