@@ -41,7 +41,8 @@
                 autocomplete="current-password"
                 @blur="validateField('password')"
               />
-              <button type="button" class="eye-btn" @click="showPass = !showPass" :aria-label="showPass ? 'Ocultar' : 'Mostrar'">
+              <button type="button" class="eye-btn" @click="showPass = !showPass"
+                :aria-label="showPass ? 'Ocultar' : 'Mostrar'">
                 {{ showPass ? '🙈' : '👁️' }}
               </button>
             </div>
@@ -55,16 +56,10 @@
         </button>
       </form>
 
-      <!-- Demo hint -->
       <div class="demo-hint">
         <span>¿Primera vez?</span>
         <router-link to="/register" class="link-green">Crea tu cuenta</router-link>
       </div>
-
-      <div class="divider"><span>o prueba la demo</span></div>
-      <button class="btn btn-secondary btn-full" @click="demoLogin">
-        ⚡ Acceder como invitado
-      </button>
     </div>
   </div>
 </template>
@@ -76,13 +71,13 @@ import { useUserStore } from '@/stores/userStore'
 import StatusToast from '@/components/StatusToast.vue'
 
 const router = useRouter()
-const store = useUserStore()
+const store  = useUserStore()
 
-const form = reactive({ email: '', password: '' })
-const errors = reactive({ email: '', password: '' })
+const form    = reactive({ email: '', password: '' })
+const errors  = reactive({ email: '', password: '' })
 const loading = ref(false)
 const showPass = ref(false)
-const toast = reactive({ show: false, message: '', type: 'success' })
+const toast   = reactive({ show: false, message: '', type: 'success' })
 
 function showToast(message, type = 'success') {
   toast.show = false
@@ -101,40 +96,32 @@ function validateField(field) {
 }
 
 async function handleLogin() {
-  validateField('email'); validateField('password')
+  validateField('email')
+  validateField('password')
   if (errors.email || errors.password) return
 
   loading.value = true
   showToast('Verificando credenciales...', 'loading')
-  await new Promise(r => setTimeout(r, 900)) // simulate API
+
   try {
-    store.login(form.email, form.password)
+    await store.login(form.email, form.password)
     showToast('¡Bienvenido de vuelta! 🎉', 'success')
-    await new Promise(r => setTimeout(r, 600))
+    await new Promise(r => setTimeout(r, 500))
     router.push(store.hasProfile ? '/semaforo' : '/perfil')
   } catch (e) {
-    showToast(e.message, 'error')
+    // Traducir errores comunes de Supabase
+    const msg = translateError(e.message)
+    showToast(msg, 'error')
   } finally {
     loading.value = false
   }
 }
 
-async function demoLogin() {
-  loading.value = true
-  showToast('Iniciando sesión de demo...', 'loading')
-  // Create demo user if not exists
-  try {
-    store.register('Demo User', 'demo@foodlight.app', 'demo123')
-  } catch {}
-  await new Promise(r => setTimeout(r, 800))
-  try {
-    store.login('demo@foodlight.app', 'demo123')
-    showToast('¡Demo activa! Explorando FoodLight 🚀', 'info')
-    await new Promise(r => setTimeout(r, 600))
-    router.push('/perfil')
-  } finally {
-    loading.value = false
-  }
+function translateError(msg) {
+  if (msg.includes('Invalid login credentials')) return 'Correo o contraseña incorrectos.'
+  if (msg.includes('Email not confirmed'))       return 'Confirma tu correo antes de entrar.'
+  if (msg.includes('Too many requests'))         return 'Demasiados intentos. Espera un momento.'
+  return msg
 }
 </script>
 
@@ -153,12 +140,11 @@ async function demoLogin() {
 .hero-blob {
   position: absolute; top: -40px; right: -60px;
   width: 200px; height: 200px;
-  background: rgba(255,255,255,.1);
-  border-radius: 50%;
+  background: rgba(255,255,255,.1); border-radius: 50%;
 }
 .hero-content { text-align: center; position: relative; }
-.app-logo { font-size: 56px; line-height: 1; margin-bottom: 12px; }
-.app-title { font-size: 36px; font-weight: 800; color: white; letter-spacing: -.5px; }
+.app-logo     { font-size: 56px; line-height: 1; margin-bottom: 12px; }
+.app-title    { font-size: 36px; font-weight: 800; color: white; letter-spacing: -.5px; }
 .app-subtitle { font-size: 16px; color: rgba(255,255,255,.85); margin-top: 6px; }
 
 .auth-card {
@@ -170,27 +156,27 @@ async function demoLogin() {
   display: flex; flex-direction: column; gap: 20px;
   box-shadow: 0 -4px 30px rgba(0,0,0,.08);
 }
-.form-title { font-size: 22px; font-weight: 700; color: var(--gray-900); }
+.form-title  { font-size: 22px; font-weight: 700; color: var(--gray-900); }
 .form-fields { display: flex; flex-direction: column; gap: 16px; }
 
-.input-group { position: relative; }
-.input-group .input { padding-right: 48px; width: 100%; }
+.input-group            { position: relative; }
+.input-group .input     { padding-right: 48px; width: 100%; }
 .eye-btn {
   position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
   background: none; border: none; cursor: pointer; font-size: 18px; padding: 0;
 }
 
-.demo-hint { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--gray-500); justify-content: center; }
+.demo-hint {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; color: var(--gray-500); justify-content: center;
+}
 .link-green { color: var(--green); font-weight: 600; text-decoration: none; }
 .link-green:hover { text-decoration: underline; }
 
-.divider { position: relative; text-align: center; }
-.divider::before { content: ''; position: absolute; inset: 50% 0 auto; height: 1px; background: var(--gray-200); }
-.divider span { position: relative; background: white; padding: 0 12px; font-size: 13px; color: var(--gray-400); }
-
 .spinner-sm {
-  width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4);
-  border-top-color: white; border-radius: 50%; animation: spin .7s linear infinite;
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,.4); border-top-color: white;
+  border-radius: 50%; animation: spin .7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 </style>

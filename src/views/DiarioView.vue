@@ -2,7 +2,7 @@
   <div class="diario-page">
     <StatusToast :show="toast.show" :message="toast.message" :type="toast.type" />
 
-    <!-- ── Header + navegación de días ── -->
+    <!-- Header + navegación de días -->
     <div class="diario-header">
       <div class="header-top">
         <h2>Diario Alimenticio</h2>
@@ -15,7 +15,7 @@
       </div>
     </div>
 
-    <!-- ── Sin perfil ── -->
+    <!-- Sin perfil -->
     <div v-if="!store.hasProfile" class="empty-card card">
       <div class="empty-icon">📒</div>
       <h3>Completa tu perfil primero</h3>
@@ -24,7 +24,7 @@
     </div>
 
     <template v-else>
-      <!-- ── Resumen del día ── -->
+      <!-- Resumen del día -->
       <div class="resumen-card card">
         <div class="resumen-header">
           <span class="resumen-titulo">Resumen del día</span>
@@ -46,10 +46,6 @@
 
         <div class="macros-row">
           <div class="macro-item" v-for="m in macros" :key="m.key">
-            <!--
-              m.pct es un computed ref en v1; usamos .value para que funcione el binding.
-              Si en tu setup prefieres calcular macros como array plano, ajusta aquí.
-            -->
             <div class="macro-circle" :style="{ '--pct': m.pct.value + '%', '--color': m.color }">
               <span class="macro-num">{{ totales[m.key] }}g</span>
             </div>
@@ -82,7 +78,7 @@
         </div>
       </div>
 
-      <!-- ── Secciones por tiempo de comida ── -->
+      <!-- Secciones por tiempo de comida -->
       <div v-for="meal in mealTypes" :key="meal.key" class="meal-section">
         <div class="meal-header">
           <div class="meal-title">
@@ -122,7 +118,7 @@
       </div>
     </template>
 
-    <!-- ══ Modal para agregar entrada ══ -->
+    <!-- Modal para agregar entrada -->
     <transition name="modal">
       <div v-if="modal.open" class="modal-overlay" @click.self="cerrarModal">
         <div class="modal-card">
@@ -133,33 +129,19 @@
 
           <!-- Tabs -->
           <div class="modal-tabs">
-            <button
-              class="modal-tab"
-              :class="{ active: modal.origen === 'alimento' }"
-              @click="switchOrigen('alimento')"
-            >🥗 Alimento</button>
-            <button
-              class="modal-tab"
-              :class="{ active: modal.origen === 'receta' }"
-              @click="switchOrigen('receta')"
-            >🍽️ Receta</button>
+            <button class="modal-tab" :class="{ active: modal.origen === 'alimento' }" @click="switchOrigen('alimento')">🥗 Alimento</button>
+            <button class="modal-tab" :class="{ active: modal.origen === 'receta' }"   @click="switchOrigen('receta')">🍽️ Receta</button>
           </div>
 
-          <!-- ── Tab: Alimento ── -->
+          <!-- Tab: Alimento -->
           <template v-if="modal.origen === 'alimento'">
-            <input
-              v-model="modal.busqueda"
-              type="search"
-              class="input"
-              placeholder="🔍 Buscar alimento..."
-              @input="buscarAlimentos"
-            />
+            <input v-model="modal.busqueda" type="search" class="input"
+              placeholder="🔍 Buscar alimento..." @input="buscarAlimentos" />
+
             <div v-if="modal.resultados.length" class="resultados-list">
               <button
-                v-for="a in modal.resultados"
-                :key="a.nombre"
-                class="resultado-item"
-                :class="{ selected: modal.seleccionado?.nombre === a.nombre }"
+                v-for="a in modal.resultados" :key="a.id"
+                class="resultado-item" :class="{ selected: modal.seleccionado?.id === a.id }"
                 @click="seleccionarAlimento(a)"
               >
                 <span class="r-dot" :class="colorAlimento(a)"></span>
@@ -172,13 +154,7 @@
             <div v-if="modal.seleccionado" class="cantidad-row">
               <div class="field">
                 <label>Cantidad (g)</label>
-                <input
-                  v-model.number="modal.cantidad"
-                  type="number"
-                  min="1"
-                  max="2000"
-                  class="input"
-                />
+                <input v-model.number="modal.cantidad" type="number" min="1" max="2000" class="input" />
               </div>
               <div class="preview-kcal">
                 <span>≈</span>
@@ -188,70 +164,43 @@
             </div>
           </template>
 
-          <!-- ── Tab: Receta ── -->
+          <!-- Tab: Receta -->
           <template v-else>
-            <input
-              v-model="modal.busqueda"
-              type="search"
-              class="input"
-              placeholder="🔍 Buscar receta..."
-              @input="buscarRecetas"
-            />
+            <input v-model="modal.busqueda" type="search" class="input"
+              placeholder="🔍 Buscar receta..." @input="buscarRecetas" />
 
-            <!-- Estado: cargando -->
             <div v-if="modal.cargandoRecetas" class="loading-recetas">
               <div class="spinner-sm-verde"></div>
               <span>Buscando recetas...</span>
             </div>
 
-            <!-- Resultados de recetas -->
             <div v-else-if="modal.resultadosRecetas.length" class="resultados-list">
               <button
-                v-for="r in modal.resultadosRecetas"
-                :key="r.id"
-                class="resultado-item"
-                :class="{ selected: modal.seleccionado?.id === r.id }"
+                v-for="r in modal.resultadosRecetas" :key="r.id"
+                class="resultado-item" :class="{ selected: modal.seleccionado?.id === r.id }"
                 @click="seleccionarReceta(r)"
               >
                 <span class="r-dot verde"></span>
                 <span class="r-nombre">{{ r.nombre }}</span>
-                <!--
-                  Mostramos kcal/porción si está calculado, si no el tiempo de preparación.
-                  _kcalPorPorcion es calculado en buscarRecetas() dividiendo _kcalTotal / porciones.
-                -->
                 <span class="r-kcal r-kcal-receta">
-                  <template v-if="r._kcalPorPorcion != null">
-                    {{ r._kcalPorPorcion }} kcal/p
-                  </template>
-                  <template v-else>
-                    {{ r.tiempo_min }} min
-                  </template>
+                  <template v-if="r._kcalPorPorcion != null">{{ r._kcalPorPorcion }} kcal/p</template>
+                  <template v-else>{{ r.tiempo_min }} min</template>
                 </span>
               </button>
             </div>
-            <p
-              v-else-if="modal.busqueda.length > 0 && !modal.cargandoRecetas && modal.resultadosRecetas.length === 0"
-              class="no-results"
-            >
+            <p v-else-if="modal.busqueda.length > 0 && !modal.cargandoRecetas" class="no-results">
               Sin resultados para "{{ modal.busqueda }}"
             </p>
             <p v-else-if="modal.busqueda.length === 0" class="no-results hint">
               Escribe para buscar recetas disponibles
             </p>
 
-            <!-- Selector de porciones (estética v1 con flechitas) -->
             <div v-if="modal.seleccionado" class="cantidad-row">
               <div class="field">
                 <label>Porciones</label>
                 <div class="porciones-input-wrap">
-                  <input
-                    v-model.number="modal.porciones"
-                    type="number"
-                    min="0.5"
-                    step="0.5"
-                    class="input"
-                    @change="modal.porciones = Math.max(0.5, modal.porciones || 0.5)"
-                  />
+                  <input v-model.number="modal.porciones" type="number" min="0.5" step="0.5" class="input"
+                    @change="modal.porciones = Math.max(0.5, modal.porciones || 0.5)" />
                   <div class="porciones-arrows">
                     <button type="button" @click="modal.porciones = +(modal.porciones + 0.5).toFixed(1)">▲</button>
                     <button type="button" @click="modal.porciones = +(Math.max(0.5, modal.porciones - 0.5)).toFixed(1)">▼</button>
@@ -265,16 +214,14 @@
               </div>
             </div>
 
-            <!-- Advertencia cuando no se pudo calcular kcal -->
             <div v-if="modal.seleccionado && kcalPreviewReceta === '?'" class="kcal-warning">
-              ℹ️ No se pudo calcular el total calórico desde el CSV. Se registrará sin kcal.
+              ℹ️ No se pudo calcular el total calórico. Se registrará sin kcal.
             </div>
 
-            <!-- Info de la receta seleccionada -->
             <div v-if="modal.seleccionado" class="receta-info-row">
               <span>📋 Receta rinde <strong>{{ modal.seleccionado.porciones }}</strong> porción(es)</span>
               <span v-if="modal.seleccionado._kcalPorPorcion != null">
-                · <strong>{{ modal.seleccionado._kcalPorPorcion }}</strong> kcal por porción
+                · <strong>{{ modal.seleccionado._kcalPorPorcion }}</strong> kcal/porción
               </span>
             </div>
           </template>
@@ -303,53 +250,46 @@ import StatusToast from '@/components/StatusToast.vue'
 const store = useUserStore()
 const { getAlimentos, clasificarAlimento } = useFoodData()
 
-// ── Estado principal ──────────────────────────────────────────────────────────
-const fechaActual    = ref(hoy())
-const entradas       = ref([])
-const todosAlimentos = ref([])
-const guardando      = ref(false)
-const toast          = reactive({ show: false, message: '', type: 'success' })
+// ── Fecha ──────────────────────────────────────────────────────────────────────
+const fechaActual = ref(hoy())
+const entradas    = ref([])
+const guardando   = ref(false)
+const toast       = reactive({ show: false, message: '', type: 'success' })
 
-// ── Helpers de fecha LOCAL (sin UTC offset) ───────────────────────────────────
 function hoy() {
-  const d = new Date()
-  const yyyy = d.getFullYear()
-  const mm   = String(d.getMonth() + 1).padStart(2, '0')
-  const dd   = String(d.getDate()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}`
+  const d  = new Date()
+  const yy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yy}-${mm}-${dd}`
 }
-
 function irDia(delta) {
   const d = new Date(fechaActual.value + 'T12:00:00')
   d.setDate(d.getDate() + delta)
-  const yyyy = d.getFullYear()
-  const mm   = String(d.getMonth() + 1).padStart(2, '0')
-  const dd   = String(d.getDate()).padStart(2, '0')
-  fechaActual.value = `${yyyy}-${mm}-${dd}`
+  fechaActual.value = d.toISOString().split('T')[0]
 }
-
 function irHoy() { fechaActual.value = hoy() }
-
 const esHoy = computed(() => fechaActual.value === hoy())
+const fechaFormateada = computed(() =>
+  new Date(fechaActual.value + 'T12:00:00')
+    .toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
+)
 
-const fechaFormateada = computed(() => {
-  const d = new Date(fechaActual.value + 'T12:00:00')
-  return d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
-})
-
-// ── Perfil / TDEE ─────────────────────────────────────────────────────────────
+// ── TDEE ───────────────────────────────────────────────────────────────────────
 const tdee = computed(() => {
-  const { peso, estatura, edad, sexo, actividad } = store.profile || {}
-  if (!peso || !estatura || !edad || !sexo) return 2000
-  const tmb = sexo === 'M'
-    ? 10 * peso + 6.25 * estatura - 5 * edad + 5
-    : 10 * peso + 6.25 * estatura - 5 * edad - 161
-  return Math.round(tmb * parseFloat(actividad || 1.375))
+  const p = store.profile
+  if (!p?.peso || !p?.estatura || !p?.edad || !p?.sexo) return 2000
+  const tmb = p.sexo === 'M'
+    ? 10 * p.peso + 6.25 * p.estatura - 5 * p.edad + 5
+    : 10 * p.peso + 6.25 * p.estatura - 5 * p.edad - 161
+  return Math.round(tmb * parseFloat(p.actividad || 1.375))
 })
-
 const condiciones = computed(() => store.profile?.condiciones || {})
 
-// ── Tipos de comida ───────────────────────────────────────────────────────────
+// ── user_id: siempre UUID del auth ─────────────────────────────────────────────
+const userId = computed(() => store.authUser?.id)
+
+// ── Tipos de comida ────────────────────────────────────────────────────────────
 const mealTypes = [
   { key: 'desayuno', label: 'Desayuno', icon: '🌅' },
   { key: 'comida',   label: 'Comida',   icon: '☀️'  },
@@ -357,7 +297,6 @@ const mealTypes = [
   { key: 'snack',    label: 'Snack',    icon: '🍎'  },
 ]
 
-// ── Entradas agrupadas y totales ──────────────────────────────────────────────
 const entradasPorTipo = computed(() => {
   const m = {}
   for (const meal of mealTypes)
@@ -377,50 +316,32 @@ const kcalPorTipo = computed(() => {
 })
 
 const totales = computed(() => {
-  const t = {
-    kcal: 0, prot: 0, carbs: 0, grasas: 0,
-    fibra: 0, sodio: 0, azucar: 0,
-    verde: 0, amarillo: 0, rojo: 0,
-  }
+  const t = { kcal:0, prot:0, carbs:0, grasas:0, fibra:0, sodio:0, azucar:0, verde:0, amarillo:0, rojo:0 }
   for (const e of entradas.value) {
-    if (e.origen === 'receta') {
-      t.kcal += parseFloat(e.receta_kcal || 0)
-      // Los macros de recetas no se desglosan (no están en Supabase por porción).
-      // Si en el futuro guardas prot/carbs/grasas de receta, súmalos aquí.
-    } else {
-      t.kcal   += parseFloat(e.alimento_kcal   || 0)
-      t.prot   += parseFloat(e.alimento_prot   || 0)
-      t.carbs  += parseFloat(e.alimento_carbs  || 0)
-      t.grasas += parseFloat(e.alimento_grasas || 0)
-      t.fibra  += parseFloat(e.alimento_fibra  || 0)
-      t.sodio  += parseFloat(e.alimento_sodio  || 0)
-      t.azucar += parseFloat(e.alimento_azucar || 0)
-      if (e.color_semaforo) t[e.color_semaforo]++
-    }
+    t.kcal   += parseFloat(e.origen === 'receta' ? (e.receta_kcal || 0) : (e.alimento_kcal || 0))
+    t.prot   += parseFloat(e.alimento_prot   || 0)
+    t.carbs  += parseFloat(e.alimento_carbs  || 0)
+    t.grasas += parseFloat(e.alimento_grasas || 0)
+    t.fibra  += parseFloat(e.alimento_fibra  || 0)
+    t.sodio  += parseFloat(e.alimento_sodio  || 0)
+    t.azucar += parseFloat(e.alimento_azucar || 0)
+    if (e.color_semaforo && ['verde','amarillo','rojo'].includes(e.color_semaforo))
+      t[e.color_semaforo]++
   }
-  for (const k of Object.keys(t)) {
-    if (!['verde', 'amarillo', 'rojo'].includes(k))
-      t[k] = Math.round(t[k] * 10) / 10
-  }
+  for (const k of Object.keys(t))
+    if (!['verde','amarillo','rojo'].includes(k)) t[k] = Math.round(t[k] * 10) / 10
   return t
 })
 
-// ── Métricas visuales ─────────────────────────────────────────────────────────
-const pctKcal = computed(() =>
-  Math.min(100, Math.round((totales.value.kcal / tdee.value) * 100))
-)
-
+const pctKcal   = computed(() => Math.min(100, Math.round((totales.value.kcal / tdee.value) * 100)))
 const colorKcal = computed(() => {
   if (pctKcal.value > 110) return 'var(--red)'
   if (pctKcal.value > 90)  return 'var(--yellow)'
   return 'var(--green)'
 })
-
 const restoKcal = computed(() => {
   const diff = tdee.value - totales.value.kcal
-  return diff >= 0
-    ? `${diff} kcal restantes`
-    : `${Math.abs(diff)} kcal de exceso`
+  return diff >= 0 ? `${diff} kcal restantes` : `${Math.abs(diff)} kcal de exceso`
 })
 
 const macros = [
@@ -434,35 +355,25 @@ const macros = [
 
 const metricasExtra = computed(() => {
   const ex = []
-  if (condiciones.value.hipertensión) {
+  if (condiciones.value.hipertension) {
     const sodio = totales.value.sodio
-    ex.push({
-      key: 'sodio', icon: '🧂', label: 'Sodio', unit: 'mg',
-      level: sodio > 2300 ? 'nivel-rojo' : sodio > 1500 ? 'nivel-amarillo' : 'nivel-verde',
-    })
+    ex.push({ key: 'sodio', icon: '🧂', label: 'Sodio', unit: 'mg',
+      level: sodio > 2300 ? 'nivel-rojo' : sodio > 1500 ? 'nivel-amarillo' : 'nivel-verde' })
   }
-  if (condiciones.value.diabetes) {
+  if (condiciones.value.diabetes_t2) {
     const azucar = totales.value.azucar
-    ex.push({
-      key: 'azucar', icon: '🩸', label: 'Azúcar', unit: 'g',
-      level: azucar > 50 ? 'nivel-rojo' : azucar > 25 ? 'nivel-amarillo' : 'nivel-verde',
-    })
+    ex.push({ key: 'azucar', icon: '🩸', label: 'Azúcar', unit: 'g',
+      level: azucar > 50 ? 'nivel-rojo' : azucar > 25 ? 'nivel-amarillo' : 'nivel-verde' })
   }
   return ex
 })
 
 // ── Modal ──────────────────────────────────────────────────────────────────────
 const modal = reactive({
-  open: false,
-  tipo: 'desayuno',
-  origen: 'alimento',
-  busqueda: '',
-  resultados: [],
-  resultadosRecetas: [],
-  cargandoRecetas: false,
-  seleccionado: null,
-  cantidad: 100,
-  porciones: 1,
+  open: false, tipo: 'desayuno', origen: 'alimento',
+  busqueda: '', resultados: [], resultadosRecetas: [],
+  cargandoRecetas: false, seleccionado: null,
+  cantidad: 100, porciones: 1,
 })
 
 function abrirModal(tipo) {
@@ -473,191 +384,138 @@ function abrirModal(tipo) {
     cantidad: 100, porciones: 1,
   })
 }
-
 function cerrarModal() { modal.open = false }
-
-function switchOrigen(origen) {
-  modal.origen = origen
-  modal.busqueda = ''
-  modal.resultados = []
-  modal.resultadosRecetas = []
-  modal.seleccionado = null
-  modal.cargandoRecetas = false
+function switchOrigen(o) {
+  modal.origen = o; modal.busqueda = ''
+  modal.resultados = []; modal.resultadosRecetas = []
+  modal.seleccionado = null; modal.cargandoRecetas = false
 }
+function colorAlimento(a) { return clasificarAlimento(a, condiciones.value) }
 
-function colorAlimento(a) {
-  return clasificarAlimento(a, condiciones.value)
-}
-
-// ── Buscar alimento en CSV local ──────────────────────────────────────────────
+// ── Búsqueda alimentos (Supabase directo) ──────────────────────────────────────
+let alimentoTimer = null
 function buscarAlimentos() {
-  const q = modal.busqueda.toLowerCase().trim()
-  if (q.length < 2) { modal.resultados = []; return }
-  modal.resultados = todosAlimentos.value
-    .filter(a => a.nombre.toLowerCase().includes(q))
-    .slice(0, 8)
+  clearTimeout(alimentoTimer)
+  alimentoTimer = setTimeout(async () => {
+    const q = modal.busqueda.trim()
+    if (q.length < 2) { modal.resultados = []; return }
+    const { data } = await supabase
+      .from('alimentos')
+      .select('*, grupos_alimentos(nombre)')
+      .ilike('nombre', `%${q}%`)
+      .order('nombre')
+      .limit(10)
+    modal.resultados = (data || []).map(a => ({
+      ...a, grupo_nombre: a.grupos_alimentos?.nombre || 'Otro'
+    }))
+  }, 200)
 }
 
-// ── Calcular nutrición de receta ──────────────────────────────────────────────
-//
-// Estrategia: los ingredientes en Supabase tienen alimento_id (ej: 1366).
-// El CSV local NO tiene esos IDs — son IDs de la tabla "alimentos" en Supabase.
-// Por tanto consultamos directo en Supabase haciendo un JOIN implícito:
-//   receta_ingredientes → alimentos (por alimento_id)
-//
-// Fórmula: energia_kcal en alimentos es por peso_neto_g gramos.
-//   → factor = cantidad_ingrediente_g / peso_neto_g
-//   → kcal_ingrediente = energia_kcal * factor
-//
+// ── Nutrición de receta via JOIN en Supabase ───────────────────────────────────
 async function calcularNutricionReceta(recetaId) {
-  // Join: traer ingredientes con datos nutricionales del alimento
   const { data: ings, error } = await supabase
     .from('receta_ingredientes')
     .select(`
       cantidad,
-      unidad,
-      alimentos (
-        energia_kcal,
-        proteina_g,
-        lipidos_g,
-        hidratos_carbono_g,
-        fibra_g,
-        sodio_mg,
-        azucar_g,
-        peso_neto_g
-      )
+      alimentos ( energia_kcal, proteina_g, lipidos_g, hidratos_carbono_g,
+                  fibra_g, sodio_mg, azucar_g, peso_neto_g )
     `)
     .eq('receta_id', recetaId)
 
-  if (error) { console.error('Error ingredientes join:', error); return null }
-  if (!ings?.length) return null
+  if (error || !ings?.length) return null
 
-  const tot = { kcal: 0, prot: 0, carbs: 0, grasas: 0, fibra: 0, sodio: 0, azucar: 0 }
+  const tot = { kcal:0, prot:0, carbs:0, grasas:0, fibra:0, sodio:0, azucar:0 }
   let encontrados = 0
 
   for (const ing of ings) {
     const a = ing.alimentos
     if (!a) continue
-
-    const cantidadG   = parseFloat(ing.cantidad)    || 0
-    const pesoPorcion = parseFloat(a.peso_neto_g)   || 100
-    if (cantidadG === 0) continue
-
+    const cantidadG   = parseFloat(ing.cantidad) || 0
+    const pesoPorcion = parseFloat(a.peso_neto_g) || 100
+    if (!cantidadG) continue
     encontrados++
-    const factor = cantidadG / pesoPorcion
-
-    tot.kcal   += (parseFloat(a.energia_kcal)       || 0) * factor
-    tot.prot   += (parseFloat(a.proteina_g)         || 0) * factor
-    tot.carbs  += (parseFloat(a.hidratos_carbono_g) || 0) * factor
-    tot.grasas += (parseFloat(a.lipidos_g)          || 0) * factor
-    tot.fibra  += (parseFloat(a.fibra_g)            || 0) * factor
-    tot.sodio  += (parseFloat(a.sodio_mg)           || 0) * factor
-    tot.azucar += (parseFloat(a.azucar_g)           || 0) * factor
+    const f = cantidadG / pesoPorcion
+    tot.kcal   += (parseFloat(a.energia_kcal)       || 0) * f
+    tot.prot   += (parseFloat(a.proteina_g)         || 0) * f
+    tot.carbs  += (parseFloat(a.hidratos_carbono_g) || 0) * f
+    tot.grasas += (parseFloat(a.lipidos_g)          || 0) * f
+    tot.fibra  += (parseFloat(a.fibra_g)            || 0) * f
+    tot.sodio  += (parseFloat(a.sodio_mg)           || 0) * f
+    tot.azucar += (parseFloat(a.azucar_g)           || 0) * f
   }
 
-  if (encontrados === 0) return null
-
-  for (const k of Object.keys(tot))
-    tot[k] = Math.round(tot[k] * 10) / 10
-
+  if (!encontrados) return null
+  for (const k of Object.keys(tot)) tot[k] = Math.round(tot[k] * 10) / 10
   return tot
 }
 
-// ── Buscar recetas en Supabase ────────────────────────────────────────────────
+// ── Búsqueda recetas ───────────────────────────────────────────────────────────
 let recetaTimer = null
-
 async function buscarRecetas() {
   const q = modal.busqueda.trim()
-
-  if (q.length === 0) {
-    modal.resultadosRecetas = []
-    return
-  }
-
+  if (!q) { modal.resultadosRecetas = []; return }
   clearTimeout(recetaTimer)
   recetaTimer = setTimeout(async () => {
     modal.cargandoRecetas = true
     modal.resultadosRecetas = []
-
     try {
-      // SIN .eq('activa', true) para evitar fallos si la columna es null en alguna fila
-      // Filtramos solo por nombre — todas las recetas del SQL tienen activa=true de todas formas
       const { data, error } = await supabase
         .from('recetas')
         .select('id, nombre, tiempo_min, porciones, tipo_comida')
         .ilike('nombre', `%${q}%`)
+        .eq('activa', true)
         .order('nombre')
         .limit(10)
 
-      if (error) {
-        console.error('Error buscando recetas:', error)
-        modal.resultadosRecetas = []
-        return
-      }
+      if (error || !data?.length) return
 
-      if (!data?.length) {
-        modal.resultadosRecetas = []
-        return
-      }
-
-      // Para cada receta calcular nutrición sumando ingredientes × CSV
       const recetasConNutricion = await Promise.all(
         data.map(async rec => {
-          const porcionesTotales = rec.porciones || 1
           const nutricion = await calcularNutricionReceta(rec.id)
-
           if (nutricion) {
             return {
               ...rec,
-              _kcalPorPorcion: Math.round(nutricion.kcal / porcionesTotales),
+              _kcalPorPorcion: Math.round(nutricion.kcal / (rec.porciones || 1)),
               _kcalTotal:      Math.round(nutricion.kcal),
               _nutricionTotal: nutricion,
             }
           }
-
           return { ...rec, _kcalPorPorcion: null, _kcalTotal: null, _nutricionTotal: null }
         })
       )
-
       modal.resultadosRecetas = recetasConNutricion
-    } catch (e) {
-      console.error('Excepción buscando recetas:', e)
-      modal.resultadosRecetas = []
     } finally {
       modal.cargandoRecetas = false
     }
-  }, 250)
+  }, 300)
 }
 
 function seleccionarAlimento(a) {
   modal.seleccionado = a
   modal.cantidad = parseFloat(a.peso_neto_g) || 100
 }
-
 function seleccionarReceta(r) {
   modal.seleccionado = r
   modal.porciones = 1
 }
 
-// ── Previews de kcal ──────────────────────────────────────────────────────────
 const kcalPreview = computed(() => {
   if (!modal.seleccionado || modal.origen !== 'alimento') return 0
-  const kcalPorcion = parseFloat(modal.seleccionado.energia_kcal) || 0
-  const pesoPorcion = parseFloat(modal.seleccionado.peso_neto_g)  || 100
-  return Math.round((kcalPorcion / pesoPorcion) * (modal.cantidad || 0))
+  const kcalP = parseFloat(modal.seleccionado.energia_kcal) || 0
+  const pesoP = parseFloat(modal.seleccionado.peso_neto_g)  || 100
+  return Math.round((kcalP / pesoP) * (modal.cantidad || 0))
 })
 
 const kcalPreviewReceta = computed(() => {
   if (!modal.seleccionado || modal.origen !== 'receta') return '?'
-  const kcalPorPorcion = modal.seleccionado._kcalPorPorcion
-  if (kcalPorPorcion == null) return '?'
-  return Math.round(kcalPorPorcion * (modal.porciones || 1))
+  const kpp = modal.seleccionado._kcalPorPorcion
+  if (kpp == null) return '?'
+  return Math.round(kpp * (modal.porciones || 1))
 })
 
-// ── CRUD Supabase ──────────────────────────────────────────────────────────────
-const userId = computed(() => store.authUser?.email || store.authUser?.id || 'demo')
-
+// ── CRUD Diario ────────────────────────────────────────────────────────────────
 async function cargarEntradas() {
+  if (!userId.value) return
   const { data, error } = await supabase
     .from('diario_alimenticio')
     .select('*')
@@ -668,7 +526,7 @@ async function cargarEntradas() {
 }
 
 async function guardarEntrada() {
-  if (!modal.seleccionado) return
+  if (!modal.seleccionado || !userId.value) return
   guardando.value = true
   try {
     const payload = {
@@ -679,59 +537,48 @@ async function guardarEntrada() {
     }
 
     if (modal.origen === 'alimento') {
-      const a           = modal.seleccionado
-      const kcalPorcion = parseFloat(a.energia_kcal) || 0
-      const pesoPorcion = parseFloat(a.peso_neto_g)  || 100
-      const factor      = (modal.cantidad || 100) / pesoPorcion
-      const color       = clasificarAlimento(a, condiciones.value)
-
+      const a     = modal.seleccionado
+      const kP    = parseFloat(a.energia_kcal) || 0
+      const pesoP = parseFloat(a.peso_neto_g)  || 100
+      const fact  = (modal.cantidad || 100) / pesoP
+      const color = clasificarAlimento(a, condiciones.value)
       Object.assign(payload, {
         alimento_nombre: a.nombre,
-        alimento_kcal:   r(kcalPorcion * factor),
-        alimento_prot:   r(parseFloat(a.proteina_g         || 0) * factor),
-        alimento_carbs:  r(parseFloat(a.hidratos_carbono_g || 0) * factor),
-        alimento_grasas: r(parseFloat(a.lipidos_g          || 0) * factor),
-        alimento_fibra:  r(parseFloat(a.fibra_g            || 0) * factor),
-        alimento_sodio:  r(parseFloat(a.sodio_mg           || 0) * factor),
-        alimento_azucar: r(parseFloat(a.azucar_g           || 0) * factor),
+        alimento_kcal:   r(kP * fact),
+        alimento_prot:   r((parseFloat(a.proteina_g)         || 0) * fact),
+        alimento_carbs:  r((parseFloat(a.hidratos_carbono_g) || 0) * fact),
+        alimento_grasas: r((parseFloat(a.lipidos_g)          || 0) * fact),
+        alimento_fibra:  r((parseFloat(a.fibra_g)            || 0) * fact),
+        alimento_sodio:  r((parseFloat(a.sodio_mg)           || 0) * fact),
+        alimento_azucar: r((parseFloat(a.azucar_g)           || 0) * fact),
         alimento_ig:     parseFloat(a.indice_glucemico) || null,
-        contiene_gluten: a.contiene_gluten === true || a.contiene_gluten === 'TRUE',
+        contiene_gluten: a.contiene_gluten === true || a.contiene_gluten === 't',
         color_semaforo:  color,
         cantidad_g:      modal.cantidad,
       })
     } else {
-      // ── Receta: guardar kcal Y macros por las porciones elegidas ────────────
-      const rec              = modal.seleccionado
-      const porcionesTotales = rec.porciones || 1
-      const porcionesUsuario = modal.porciones || 1
-      // Proporción que el usuario consume respecto a toda la receta
-      const factorPorciones  = porcionesUsuario / porcionesTotales
-
-      const kcalCalculadas = typeof kcalPreviewReceta.value === 'number'
-        ? kcalPreviewReceta.value
-        : null
-
-      // Si tenemos el desglose nutricional completo (calculado desde CSV)
-      const nutricion = rec._nutricionTotal
-
+      const rec     = modal.seleccionado
+      const porTot  = rec.porciones || 1
+      const porUsu  = modal.porciones || 1
+      const factP   = porUsu / porTot
+      const nutri   = rec._nutricionTotal
+      const kcalCal = typeof kcalPreviewReceta.value === 'number' ? kcalPreviewReceta.value : null
       Object.assign(payload, {
         receta_id:        rec.id,
         receta_nombre:    rec.nombre,
-        receta_kcal:      kcalCalculadas,
-        receta_porciones: porcionesUsuario,
-        // Macros proporcionales a las porciones consumidas (solo si vienen del CSV)
-        alimento_prot:   nutricion ? r(nutricion.prot   * factorPorciones) : null,
-        alimento_carbs:  nutricion ? r(nutricion.carbs  * factorPorciones) : null,
-        alimento_grasas: nutricion ? r(nutricion.grasas * factorPorciones) : null,
-        alimento_fibra:  nutricion ? r(nutricion.fibra  * factorPorciones) : null,
-        alimento_sodio:  nutricion ? r(nutricion.sodio  * factorPorciones) : null,
-        alimento_azucar: nutricion ? r(nutricion.azucar * factorPorciones) : null,
+        receta_kcal:      kcalCal,
+        receta_porciones: porUsu,
+        alimento_prot:   nutri ? r(nutri.prot   * factP) : null,
+        alimento_carbs:  nutri ? r(nutri.carbs  * factP) : null,
+        alimento_grasas: nutri ? r(nutri.grasas * factP) : null,
+        alimento_fibra:  nutri ? r(nutri.fibra  * factP) : null,
+        alimento_sodio:  nutri ? r(nutri.sodio  * factP) : null,
+        alimento_azucar: nutri ? r(nutri.azucar * factP) : null,
       })
     }
 
     const { error } = await supabase.from('diario_alimenticio').insert(payload)
     if (error) throw error
-
     await cargarEntradas()
     cerrarModal()
     showToast('Entrada guardada ✅', 'success')
@@ -746,10 +593,7 @@ async function guardarEntrada() {
 function r(n) { return Math.round(n * 10) / 10 }
 
 async function eliminarEntrada(id) {
-  const { error } = await supabase
-    .from('diario_alimenticio')
-    .delete()
-    .eq('id', id)
+  const { error } = await supabase.from('diario_alimenticio').delete().eq('id', id)
   if (!error) {
     entradas.value = entradas.value.filter(e => e.id !== id)
     showToast('Entrada eliminada', 'info')
@@ -758,27 +602,16 @@ async function eliminarEntrada(id) {
 
 function showToast(message, type = 'success') {
   toast.show = false
-  setTimeout(() => {
-    toast.message = message
-    toast.type    = type
-    toast.show    = true
-  }, 50)
+  setTimeout(() => { toast.message = message; toast.type = type; toast.show = true }, 50)
 }
 
 watch(fechaActual, cargarEntradas)
-
-onMounted(async () => {
-  if (store.hasProfile) {
-    todosAlimentos.value = await getAlimentos()
-    await cargarEntradas()
-  }
-})
+onMounted(() => { if (store.hasProfile) cargarEntradas() })
 </script>
 
 <style scoped>
 .diario-page { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
 
-/* ── Header ── */
 .diario-header { display: flex; flex-direction: column; gap: 10px; }
 .header-top { display: flex; align-items: center; justify-content: space-between; }
 .header-top h2 { font-size: 22px; font-weight: 800; }
@@ -795,12 +628,9 @@ onMounted(async () => {
   cursor: pointer; transition: all .2s;
 }
 .nav-btn:hover:not(:disabled) { background: var(--gray-200); }
-.nav-btn.today {
-  background: var(--green-light); color: var(--green-dark); border-color: var(--green);
-}
+.nav-btn.today { background: var(--green-light); color: var(--green-dark); border-color: var(--green); }
 .nav-btn:disabled { opacity: .4; cursor: not-allowed; }
 
-/* ── Resumen ── */
 .resumen-card { display: flex; flex-direction: column; gap: 16px; }
 .resumen-header { display: flex; justify-content: space-between; align-items: center; }
 .resumen-titulo { font-size: 15px; font-weight: 700; }
@@ -811,15 +641,9 @@ onMounted(async () => {
 .kcal-val { font-size: 32px; font-weight: 800; transition: color .3s; }
 .kcal-unit { font-size: 14px; color: var(--gray-400); }
 .kcal-resto { font-size: 12px; font-weight: 600; }
-.progress-track {
-  width: 100%; height: 8px; background: var(--gray-100);
-  border-radius: 99px; overflow: hidden;
-}
-.progress-fill {
-  height: 100%; border-radius: 99px; transition: width .5s ease, background .3s;
-}
+.progress-track { width: 100%; height: 8px; background: var(--gray-100); border-radius: 99px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 99px; transition: width .5s ease, background .3s; }
 
-/* ── Macros ── */
 .macros-row { display: flex; justify-content: space-around; gap: 8px; }
 .macro-item { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .macro-circle {
@@ -827,230 +651,104 @@ onMounted(async () => {
   background: conic-gradient(var(--color) var(--pct), var(--gray-100) 0);
   display: flex; align-items: center; justify-content: center; position: relative;
 }
-.macro-circle::before {
-  content: ''; position: absolute; inset: 8px;
-  background: white; border-radius: 50%;
-}
-.macro-num {
-  position: relative; z-index: 1;
-  font-size: 11px; font-weight: 700; color: var(--gray-800);
-}
-.macro-lbl { font-size: 11px; color: var(--gray-500); font-weight: 600; }
+.macro-circle::before { content:''; position:absolute; inset:8px; background:white; border-radius:50%; }
+.macro-num { position:relative; z-index:1; font-size:11px; font-weight:700; color:var(--gray-800); }
+.macro-lbl { font-size:11px; color:var(--gray-500); font-weight:600; }
 
-/* ── Extras ── */
 .extras-row { display: flex; gap: 10px; }
-.extra-chip {
-  flex: 1; display: flex; align-items: center; gap: 10px;
-  padding: 12px 14px; border-radius: var(--radius-md);
-  background: var(--gray-50);
-}
-.extra-chip span:first-child { font-size: 22px; }
-.extra-chip > div { display: flex; flex-direction: column; }
-.extra-val { font-size: 16px; font-weight: 700; }
-.extra-lbl { font-size: 11px; color: var(--gray-400); }
-.nivel-verde    { border-left: 3px solid var(--green); }
-.nivel-amarillo { border-left: 3px solid var(--yellow); }
-.nivel-rojo     { border-left: 3px solid var(--red); }
+.extra-chip { flex:1; display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:var(--radius-md); background:var(--gray-50); }
+.extra-chip span:first-child { font-size:22px; }
+.extra-chip > div { display:flex; flex-direction:column; }
+.extra-val { font-size:16px; font-weight:700; }
+.extra-lbl { font-size:11px; color:var(--gray-400); }
+.nivel-verde    { border-left:3px solid var(--green); }
+.nivel-amarillo { border-left:3px solid var(--yellow); }
+.nivel-rojo     { border-left:3px solid var(--red); }
 
-/* ── Semáforo día ── */
-.semaforo-dia { display: flex; align-items: center; gap: 10px; }
-.sd-label { font-size: 12px; font-weight: 600; color: var(--gray-500); white-space: nowrap; }
-.sd-bar {
-  flex: 1; height: 10px; border-radius: 99px;
-  overflow: hidden; display: flex; gap: 2px;
-}
-.sd-seg { height: 100%; min-width: 4px; transition: flex .4s ease; }
-.sd-seg.verde    { background: var(--green); }
-.sd-seg.amarillo { background: var(--yellow); }
-.sd-seg.rojo     { background: var(--red); }
-.sd-counts { display: flex; gap: 8px; }
-.sd-dot { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
-.sd-dot.verde    { background: var(--green-light);  color: var(--green-dark); }
-.sd-dot.amarillo { background: var(--yellow-light); color: #7A5800; }
-.sd-dot.rojo     { background: var(--red-light);    color: var(--red); }
+.semaforo-dia { display:flex; align-items:center; gap:10px; }
+.sd-label { font-size:12px; font-weight:600; color:var(--gray-500); white-space:nowrap; }
+.sd-bar { flex:1; height:10px; border-radius:99px; overflow:hidden; display:flex; gap:2px; }
+.sd-seg { height:100%; min-width:4px; transition:flex .4s ease; }
+.sd-seg.verde    { background:var(--green); }
+.sd-seg.amarillo { background:var(--yellow); }
+.sd-seg.rojo     { background:var(--red); }
+.sd-counts { display:flex; gap:8px; }
+.sd-dot { font-size:12px; font-weight:700; padding:2px 8px; border-radius:99px; }
+.sd-dot.verde    { background:var(--green-light);  color:var(--green-dark); }
+.sd-dot.amarillo { background:var(--yellow-light); color:#7A5800; }
+.sd-dot.rojo     { background:var(--red-light);    color:var(--red); }
 
-/* ── Secciones de comida ── */
-.meal-section {
-  background: white; border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm); overflow: hidden;
-}
-.meal-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 16px; border-bottom: 1px solid var(--gray-100);
-}
-.meal-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
-.meal-icon { font-size: 18px; }
-.meal-kcal-badge {
-  font-size: 12px; font-weight: 600; color: var(--gray-400);
-  background: var(--gray-100); padding: 2px 8px; border-radius: 99px;
-}
-.add-btn {
-  padding: 6px 14px; background: var(--green-light); color: var(--green-dark);
-  border: none; border-radius: var(--radius-sm);
-  font-size: 13px; font-weight: 700; cursor: pointer; transition: all .2s;
-}
-.add-btn:hover { background: var(--green); color: white; }
+.meal-section { background:white; border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); overflow:hidden; }
+.meal-header { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--gray-100); }
+.meal-title { display:flex; align-items:center; gap:8px; font-weight:700; font-size:15px; }
+.meal-icon { font-size:18px; }
+.meal-kcal-badge { font-size:12px; font-weight:600; color:var(--gray-400); background:var(--gray-100); padding:2px 8px; border-radius:99px; }
+.add-btn { padding:6px 14px; background:var(--green-light); color:var(--green-dark); border:none; border-radius:var(--radius-sm); font-size:13px; font-weight:700; cursor:pointer; transition:all .2s; }
+.add-btn:hover { background:var(--green); color:white; }
+.entradas-list { display:flex; flex-direction:column; }
+.entrada-item { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--gray-50); border-left:3px solid transparent; transition:background .15s; }
+.entrada-item:last-child { border-bottom:none; }
+.entrada-item:hover { background:var(--gray-50); }
+.entrada-item.verde    { border-left-color:var(--green); }
+.entrada-item.amarillo { border-left-color:var(--yellow); }
+.entrada-item.rojo     { border-left-color:var(--red); }
+.entrada-dot { flex-shrink:0; width:8px; height:8px; border-radius:50%; }
+.entrada-dot.verde    { background:var(--green); }
+.entrada-dot.amarillo { background:var(--yellow); }
+.entrada-dot.rojo     { background:var(--red); }
+.entrada-info { flex:1; min-width:0; }
+.entrada-nombre { display:block; font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.entrada-meta { font-size:11px; color:var(--gray-400); }
+.entrada-kcal { font-size:13px; font-weight:700; color:var(--gray-600); white-space:nowrap; }
+.del-btn { background:none; border:none; color:var(--gray-300); cursor:pointer; font-size:12px; padding:4px; border-radius:4px; transition:all .2s; }
+.del-btn:hover { background:var(--red-light); color:var(--red); }
+.meal-empty { padding:16px; font-size:13px; color:var(--gray-400); text-align:center; }
+.link-btn { background:none; border:none; color:var(--green); font-weight:600; cursor:pointer; font-size:13px; text-decoration:underline; }
+.empty-card { display:flex; flex-direction:column; align-items:center; gap:12px; text-align:center; padding:40px 24px; }
+.empty-icon { font-size:48px; }
 
-.entradas-list { display: flex; flex-direction: column; }
-.entrada-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 12px 16px; border-bottom: 1px solid var(--gray-50);
-  border-left: 3px solid transparent; transition: background .15s;
-}
-.entrada-item:last-child { border-bottom: none; }
-.entrada-item:hover { background: var(--gray-50); }
-.entrada-item.verde    { border-left-color: var(--green); }
-.entrada-item.amarillo { border-left-color: var(--yellow); }
-.entrada-item.rojo     { border-left-color: var(--red); }
-.entrada-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; }
-.entrada-dot.verde    { background: var(--green); }
-.entrada-dot.amarillo { background: var(--yellow); }
-.entrada-dot.rojo     { background: var(--red); }
-.entrada-info { flex: 1; min-width: 0; }
-.entrada-nombre {
-  display: block; font-size: 14px; font-weight: 600;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.entrada-meta { font-size: 11px; color: var(--gray-400); }
-.entrada-kcal { font-size: 13px; font-weight: 700; color: var(--gray-600); white-space: nowrap; }
-.del-btn {
-  background: none; border: none; color: var(--gray-300);
-  cursor: pointer; font-size: 12px; padding: 4px;
-  border-radius: 4px; transition: all .2s;
-}
-.del-btn:hover { background: var(--red-light); color: var(--red); }
-.meal-empty { padding: 16px; font-size: 13px; color: var(--gray-400); text-align: center; }
-.link-btn {
-  background: none; border: none; color: var(--green);
-  font-weight: 600; cursor: pointer; font-size: 13px; text-decoration: underline;
-}
-
-/* ── Empty card ── */
-.empty-card {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 12px; text-align: center; padding: 40px 24px;
-}
-.empty-icon { font-size: 48px; }
-
-/* ── Modal ── */
-.modal-overlay {
-  position: fixed; inset: 0; z-index: 500;
-  background: rgba(0,0,0,.5); backdrop-filter: blur(4px);
-  display: flex; align-items: flex-end; justify-content: center;
-}
-.modal-card {
-  width: 100%; max-width: 480px; background: white;
-  border-radius: 24px 24px 0 0; padding: 24px;
-  display: flex; flex-direction: column; gap: 16px;
-  max-height: 90vh; overflow-y: auto;
-}
-.modal-header { display: flex; align-items: center; justify-content: space-between; }
-.modal-header h3 { font-size: 18px; font-weight: 700; }
-.modal-close {
-  background: var(--gray-100); border: none;
-  width: 30px; height: 30px; border-radius: 50%;
-  cursor: pointer; font-size: 14px;
-}
-.modal-tabs { display: flex; gap: 8px; }
-.modal-tab {
-  flex: 1; padding: 10px; border-radius: var(--radius-sm);
-  background: var(--gray-100); border: 2px solid transparent;
-  font-size: 13px; font-weight: 600; color: var(--gray-500);
-  cursor: pointer; transition: all .2s;
-}
-.modal-tab.active {
-  border-color: var(--green); background: var(--green-light); color: var(--green-dark);
-}
-
-.resultados-list {
-  display: flex; flex-direction: column; gap: 4px;
-  max-height: 220px; overflow-y: auto;
-}
-.resultado-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px; border-radius: var(--radius-sm);
-  background: var(--gray-50); border: 2px solid transparent;
-  text-align: left; cursor: pointer; transition: all .15s;
-}
-.resultado-item:hover { background: var(--gray-100); }
-.resultado-item.selected { border-color: var(--green); background: var(--green-light); }
-.r-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; }
-.r-dot.verde    { background: var(--green); }
-.r-dot.amarillo { background: var(--yellow); }
-.r-dot.rojo     { background: var(--red); }
-.r-nombre { flex: 1; font-size: 14px; font-weight: 500; }
-.r-kcal { font-size: 12px; color: var(--gray-400); font-weight: 600; }
-.r-kcal-receta { color: var(--green-dark); }
-
-.no-results { font-size: 13px; color: var(--gray-400); text-align: center; padding: 12px; }
-.no-results.hint { color: var(--gray-300); font-style: italic; }
-
-/* Loading recetas */
-.loading-recetas {
-  display: flex; align-items: center; gap: 10px;
-  padding: 12px; color: var(--gray-500); font-size: 13px;
-}
-.spinner-sm-verde {
-  width: 16px; height: 16px;
-  border: 2px solid var(--gray-200); border-top-color: var(--green);
-  border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0;
-}
-
-/* ── Porciones con flechas (estética v1) ── */
-.cantidad-row { display: flex; align-items: flex-end; gap: 14px; }
-.cantidad-row .field { flex: 1; }
-.porciones-input-wrap {
-  display: flex;
-  border: 2px solid var(--green); border-radius: var(--radius-sm); overflow: hidden;
-}
-.porciones-input-wrap .input {
-  flex: 1; border: none; border-radius: 0;
-  font-size: 18px; font-weight: 700;
-  -moz-appearance: textfield;
-}
+.modal-overlay { position:fixed; inset:0; z-index:500; background:rgba(0,0,0,.5); backdrop-filter:blur(4px); display:flex; align-items:flex-end; justify-content:center; }
+.modal-card { width:100%; max-width:480px; background:white; border-radius:24px 24px 0 0; padding:24px; display:flex; flex-direction:column; gap:16px; max-height:90vh; overflow-y:auto; }
+.modal-header { display:flex; align-items:center; justify-content:space-between; }
+.modal-header h3 { font-size:18px; font-weight:700; }
+.modal-close { background:var(--gray-100); border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; font-size:14px; }
+.modal-tabs { display:flex; gap:8px; }
+.modal-tab { flex:1; padding:10px; border-radius:var(--radius-sm); background:var(--gray-100); border:2px solid transparent; font-size:13px; font-weight:600; color:var(--gray-500); cursor:pointer; transition:all .2s; }
+.modal-tab.active { border-color:var(--green); background:var(--green-light); color:var(--green-dark); }
+.resultados-list { display:flex; flex-direction:column; gap:4px; max-height:220px; overflow-y:auto; }
+.resultado-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:var(--radius-sm); background:var(--gray-50); border:2px solid transparent; text-align:left; cursor:pointer; transition:all .15s; }
+.resultado-item:hover { background:var(--gray-100); }
+.resultado-item.selected { border-color:var(--green); background:var(--green-light); }
+.r-dot { flex-shrink:0; width:8px; height:8px; border-radius:50%; }
+.r-dot.verde    { background:var(--green); }
+.r-dot.amarillo { background:var(--yellow); }
+.r-dot.rojo     { background:var(--red); }
+.r-nombre { flex:1; font-size:14px; font-weight:500; }
+.r-kcal { font-size:12px; color:var(--gray-400); font-weight:600; }
+.r-kcal-receta { color:var(--green-dark); }
+.no-results { font-size:13px; color:var(--gray-400); text-align:center; padding:12px; }
+.no-results.hint { color:var(--gray-300); font-style:italic; }
+.loading-recetas { display:flex; align-items:center; gap:10px; padding:12px; color:var(--gray-500); font-size:13px; }
+.spinner-sm-verde { width:16px; height:16px; border:2px solid var(--gray-200); border-top-color:var(--green); border-radius:50%; animation:spin .7s linear infinite; flex-shrink:0; }
+.cantidad-row { display:flex; align-items:flex-end; gap:14px; }
+.cantidad-row .field { flex:1; }
+.porciones-input-wrap { display:flex; border:2px solid var(--green); border-radius:var(--radius-sm); overflow:hidden; }
+.porciones-input-wrap .input { flex:1; border:none; border-radius:0; font-size:18px; font-weight:700; -moz-appearance:textfield; }
 .porciones-input-wrap .input::-webkit-outer-spin-button,
-.porciones-input-wrap .input::-webkit-inner-spin-button { -webkit-appearance: none; }
-.porciones-arrows {
-  display: flex; flex-direction: column; border-left: 2px solid var(--green);
-}
-.porciones-arrows button {
-  flex: 1; width: 32px; padding: 0; border: none;
-  background: var(--gray-50); cursor: pointer;
-  font-size: 9px; color: var(--gray-500);
-  transition: background .15s; line-height: 1; font-family: var(--font);
-}
-.porciones-arrows button:hover { background: var(--green-light); color: var(--green-dark); }
-.porciones-arrows button:first-child { border-bottom: 1px solid var(--green); }
-
-/* ── Preview kcal ── */
-.preview-kcal {
-  display: flex; align-items: baseline; gap: 4px;
-  padding-bottom: 14px; white-space: nowrap;
-}
-.preview-kcal span   { font-size: 16px; color: var(--gray-400); }
-.preview-kcal strong { font-size: 20px; font-weight: 800; color: var(--green); }
-.preview-kcal small  { font-size: 12px; color: var(--gray-400); }
-.preview-kcal.preview-unknown strong { color: var(--gray-300); }
-
-/* Info receta y advertencia */
-.receta-info-row {
-  font-size: 12px; color: var(--gray-500);
-  display: flex; flex-wrap: wrap; gap: 4px;
-}
-.kcal-warning {
-  font-size: 12px; color: #7A5800;
-  background: var(--yellow-light); border: 1px solid var(--yellow);
-  border-radius: var(--radius-sm); padding: 8px 12px;
-}
-
-/* ── Spinners y animaciones ── */
-.spinner-sm {
-  width: 16px; height: 16px;
-  border: 2px solid rgba(255,255,255,.4); border-top-color: white;
-  border-radius: 50%; animation: spin .7s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-
-.modal-enter-active, .modal-leave-active { transition: opacity .3s ease; }
-.modal-enter-from, .modal-leave-to { opacity: 0; }
+.porciones-input-wrap .input::-webkit-inner-spin-button { -webkit-appearance:none; }
+.porciones-arrows { display:flex; flex-direction:column; border-left:2px solid var(--green); }
+.porciones-arrows button { flex:1; width:32px; padding:0; border:none; background:var(--gray-50); cursor:pointer; font-size:9px; color:var(--gray-500); transition:background .15s; line-height:1; font-family:var(--font); }
+.porciones-arrows button:hover { background:var(--green-light); color:var(--green-dark); }
+.porciones-arrows button:first-child { border-bottom:1px solid var(--green); }
+.preview-kcal { display:flex; align-items:baseline; gap:4px; padding-bottom:14px; white-space:nowrap; }
+.preview-kcal span   { font-size:16px; color:var(--gray-400); }
+.preview-kcal strong { font-size:20px; font-weight:800; color:var(--green); }
+.preview-kcal small  { font-size:12px; color:var(--gray-400); }
+.preview-kcal.preview-unknown strong { color:var(--gray-300); }
+.receta-info-row { font-size:12px; color:var(--gray-500); display:flex; flex-wrap:wrap; gap:4px; }
+.kcal-warning { font-size:12px; color:#7A5800; background:var(--yellow-light); border:1px solid var(--yellow); border-radius:var(--radius-sm); padding:8px 12px; }
+.spinner-sm { width:16px; height:16px; border:2px solid rgba(255,255,255,.4); border-top-color:white; border-radius:50%; animation:spin .7s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.modal-enter-active, .modal-leave-active { transition:opacity .3s ease; }
+.modal-enter-from, .modal-leave-to { opacity:0; }
 </style>

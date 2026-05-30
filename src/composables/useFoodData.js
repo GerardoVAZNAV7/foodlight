@@ -2,18 +2,31 @@
 import { ref } from 'vue'
 import { supabase } from '@/services/supabase'
 
+// Caché en módulo (shared entre instancias en la misma sesión)
 let cachedAlimentos = null
+let cacheUserId     = null   // invalida caché si cambia de usuario
 
 export function useFoodData() {
   const loading = ref(false)
   const error   = ref(null)
 
-  async function getAlimentos() {
-    if (cachedAlimentos) return cachedAlimentos
+  /**
+   * Trae todos los alimentos con el nombre del grupo desde Supabase.
+   * Usa caché en memoria para no re-consultar en cada navegación.
+   * @param {boolean} force — forzar recarga ignorando caché
+   */
+  async function getAlimentos(force = false) {
+    // Obtener sesión actual para validar caché por usuario
+    const { data: { session } } = await supabase.auth.getSession()
+    const userId = session?.user?.id || null
+
+    if (!force && cachedAlimentos && cacheUserId === userId) {
+      return cachedAlimentos
+    }
+
     loading.value = true
     error.value   = null
     try {
-      // Trae todos los alimentos con el nombre del grupo
       const { data, error: err } = await supabase
         .from('alimentos')
         .select(`
@@ -24,42 +37,59 @@ export function useFoodData() {
 
       if (err) throw new Error(err.message)
 
-      cachedAlimentos = data.map(a => ({
+      cachedAlimentos = (data || []).map(a => ({
         ...a,
-        grupo_nombre: a.grupos_alimentos?.nombre || 'Otro'
+        grupo_nombre: a.grupos_alimentos?.nombre || 'Otro',
       }))
+      cacheUserId = userId
       return cachedAlimentos
+    } catch (e) {
+      error.value = e.message
+      throw e
     } finally {
       loading.value = false
     }
   }
 
-  // Esta función NO cambia — recibe el objeto alimento y las condiciones
-  function clasificarAlimento(alimento, condiciones) {
+  /** Invalida la caché (útil al cerrar sesión o cambiar perfil) */
+  function clearCache() {
+    cachedAlimentos = null
+    cacheUserId     = null
+  }
+
+  /**
+   * Clasifica un alimento en verde / amarillo / rojo
+   * según las condiciones del perfil del usuario.
+   */
+  function clasificarAlimento(alimento, condiciones = {}) {
     const flags = { verde: 0, amarillo: 0, rojo: 0 }
 
     if (condiciones.celiaquía) {
-      if (alimento.contiene_gluten) flags.rojo++
+      const gluten = alimento.contiene_gluten
+      if (gluten === true || gluten === 'TRUE' || gluten === 't') flags.rojo++
       else flags.verde++
     }
-    if (condiciones.hipertensión) {
+
+    if (condiciones.hipertension) {          // ← sin acento
       const sodio = parseFloat(alimento.sodio_mg) || 0
-      if (sodio > 400)       flags.rojo++
-      else if (sodio > 150)  flags.amarillo++
-      else                   flags.verde++
-    }
-    if (condiciones.diabetes) {
-      const ig     = parseFloat(alimento.indice_glucemico) || 0
-      const azucar = parseFloat(alimento.azucar_g) || 0
-      if (ig > 70 || azucar > 15)       flags.rojo++
-      else if (ig > 55 || azucar > 8)   flags.amarillo++
-      else                               flags.verde++
+      if (sodio > 400)      flags.rojo++
+      else if (sodio > 150) flags.amarillo++
+      else                  flags.verde++
     }
 
-    if (!condiciones.celiaquía && !condiciones.hipertensión && !condiciones.diabetes) {
-      const fibra = parseFloat(alimento.fibra_g) || 0
+    if (condiciones.diabetes_t2) {           // ← clave correcta
+      const ig     = parseFloat(alimento.indice_glucemico) || 0
+      const azucar = parseFloat(alimento.azucar_g)         || 0
+      if (ig > 70 || azucar > 15)     flags.rojo++
+      else if (ig > 55 || azucar > 8) flags.amarillo++
+      else                            flags.verde++
+    }
+
+    // Sin condiciones → clasificación general por fibra/kcal
+    if (!condiciones.celiaquía && !condiciones.hipertension && !condiciones.diabetes_t2) {
+      const fibra = parseFloat(alimento.fibra_g)      || 0
       const kcal  = parseFloat(alimento.energia_kcal) || 0
-      if (fibra > 3) return 'verde'
+      if (fibra > 3)  return 'verde'
       if (kcal > 300) return 'amarillo'
       return 'verde'
     }
@@ -69,17 +99,23 @@ export function useFoodData() {
     return 'verde'
   }
 
-  // Búsqueda directa en Supabase (para el modal del Diario, si prefieres no cargar todo)
+  /**
+   * Búsqueda directa en Supabase (para el modal del Diario).
+   */
   async function searchAlimentos(query) {
     if (!query || query.length < 2) return []
-    const { data } = await supabase
+    const { data, error: err } = await supabase
       .from('alimentos')
       .select('*, grupos_alimentos(nombre)')
       .ilike('nombre', `%${query}%`)
       .order('nombre')
       .limit(20)
-    return (data || []).map(a => ({ ...a, grupo_nombre: a.grupos_alimentos?.nombre || 'Otro' }))
+    if (err) return []
+    return (data || []).map(a => ({
+      ...a,
+      grupo_nombre: a.grupos_alimentos?.nombre || 'Otro',
+    }))
   }
 
-  return { loading, error, getAlimentos, clasificarAlimento, searchAlimentos }
+  return { loading, error, getAlimentos, clearCache, clasificarAlimento, searchAlimentos }
 }

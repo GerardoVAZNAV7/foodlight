@@ -47,10 +47,11 @@
         <!-- Dropdown popup -->
         <transition name="user-menu">
           <div v-if="userMenuOpen" class="user-dropdown">
-            <!-- Header con avatar grande -->
+            <!-- Header con saludo y avatar -->
             <div class="ud-header">
               <div class="ud-avatar">{{ initials }}</div>
               <div class="ud-info">
+                <span class="ud-greeting">Hola, {{ store.authUser?.name?.split(' ')[0] }} 👋</span>
                 <span class="ud-name">{{ store.authUser?.name }}</span>
                 <span class="ud-email">{{ store.authUser?.email }}</span>
               </div>
@@ -108,8 +109,12 @@ import BottomNav from '@/components/BottomNav.vue'
 const store = useUserStore()
 const router = useRouter()
 
-const initials = computed(() => {
-  const n = store.authUser?.name || ''
+
+
+// DESPUÉS
+  const initials = computed(() => {
+  const n = store.authUser?.name || store.authUser?.email || ''
+  if (!n) return '?'
   return n.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
 })
 
@@ -364,9 +369,12 @@ onUnmounted(() => {
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 2px 8px rgba(0,0,0,.15);
 }
-.ud-info { display: flex; flex-direction: column; min-width: 0; }
+.ud-info { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.ud-greeting {
+  font-size: 13px; font-weight: 800; color: var(--green-dark);
+}
 .ud-name {
-  font-size: 14px; font-weight: 700; color: var(--gray-800);
+  font-size: 13px; font-weight: 600; color: var(--gray-800);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .ud-email {

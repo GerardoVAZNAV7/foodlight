@@ -14,7 +14,7 @@
       </div>
     </div>
 
-    <!-- Stats summary if profile exists -->
+    <!-- Stats summary si el perfil existe -->
     <div v-if="store.hasProfile" class="stats-row">
       <div class="stat-card">
         <span class="stat-val">{{ store.profile.peso }}</span>
@@ -34,13 +34,13 @@
       </div>
     </div>
 
-    <!-- Caloric needs -->
+    <!-- Requerimiento calórico -->
     <div v-if="store.hasProfile" class="caloric-card card">
       <div class="caloric-header">
         <span>🔥</span>
         <div>
           <h4>Requerimiento calórico</h4>
-          <p>Estimado con fórmula Mifflin-St Jeor</p>
+          <p>Estimado con fórmula Mifflin-St Jeor · {{ store.profile.edad }} años</p>
         </div>
       </div>
       <div class="caloric-values">
@@ -56,7 +56,7 @@
       </div>
     </div>
 
-    <!-- Form -->
+    <!-- Formulario -->
     <div class="form-section card">
       <h3 class="section-title">
         <span>📋</span> Datos personales
@@ -64,12 +64,27 @@
 
       <form @submit.prevent="saveProfile" novalidate>
         <div class="form-grid">
-          <div class="field">
-            <label for="edad">Edad</label>
-            <input id="edad" v-model.number="form.edad" type="number" min="1" max="120" class="input"
-              :class="{ 'input-error': errors.edad }" placeholder="25" @blur="v('edad')" />
-            <span v-if="errors.edad" class="field-error">{{ errors.edad }}</span>
+
+          <!-- Fecha de nacimiento (en lugar de edad) -->
+          <div class="field span-2">
+            <label for="fecha_nacimiento">Fecha de nacimiento</label>
+            <input
+              id="fecha_nacimiento"
+              v-model="form.fecha_nacimiento"
+              type="date"
+              class="input"
+              :class="{ 'input-error': errors.fecha_nacimiento }"
+              :max="fechaMaxima"
+              :min="fechaMinima"
+              @blur="v('fecha_nacimiento')"
+            />
+            <span v-if="errors.fecha_nacimiento" class="field-error">{{ errors.fecha_nacimiento }}</span>
+            <!-- Edad calculada en tiempo real -->
+            <span v-if="edadCalculada !== null" class="edad-hint">
+              {{ edadCalculada }} años
+            </span>
           </div>
+
           <div class="field">
             <label for="sexo">Sexo</label>
             <select id="sexo" v-model="form.sexo" class="input" :class="{ 'input-error': errors.sexo }" @blur="v('sexo')">
@@ -79,18 +94,21 @@
             </select>
             <span v-if="errors.sexo" class="field-error">{{ errors.sexo }}</span>
           </div>
+
           <div class="field">
             <label for="peso">Peso (kg)</label>
             <input id="peso" v-model.number="form.peso" type="number" step="0.1" min="20" max="300" class="input"
               :class="{ 'input-error': errors.peso }" placeholder="70" @blur="v('peso')" />
             <span v-if="errors.peso" class="field-error">{{ errors.peso }}</span>
           </div>
+
           <div class="field">
             <label for="estatura">Estatura (cm)</label>
             <input id="estatura" v-model.number="form.estatura" type="number" min="50" max="250" class="input"
               :class="{ 'input-error': errors.estatura }" placeholder="170" @blur="v('estatura')" />
             <span v-if="errors.estatura" class="field-error">{{ errors.estatura }}</span>
           </div>
+
           <div class="field span-2">
             <label for="actividad">Nivel de actividad física</label>
             <select id="actividad" v-model="form.actividad" class="input">
@@ -103,7 +121,14 @@
           </div>
         </div>
 
-        <!-- Diseases -->
+        <!-- Preview en tiempo real del TDEE -->
+        <div v-if="tmbPreview !== '—'" class="tdee-preview">
+          <span>🔥 TDEE estimado:</span>
+          <strong>{{ tdeePreview }} kcal/día</strong>
+          <small>(TMB {{ tmbPreview }} × {{ form.actividad }})</small>
+        </div>
+
+        <!-- Padecimientos -->
         <div class="diseases-section">
           <h4 class="section-subtitle">🩺 Padecimientos / alergias</h4>
           <p class="section-hint">El semáforo de alimentos se ajustará automáticamente.</p>
@@ -117,7 +142,7 @@
           </div>
         </div>
 
-        <!-- Unsaved indicator (heuristic: show system state) -->
+        <!-- Indicador de cambios sin guardar -->
         <div v-if="isDirty" class="unsaved-bar" role="status">
           <span>💡 Tienes cambios sin guardar</span>
         </div>
@@ -129,7 +154,7 @@
       </form>
     </div>
 
-    <!-- CTA to semaforo -->
+    <!-- CTA al semáforo -->
     <div v-if="store.hasProfile" class="cta-card card">
       <p>✅ Perfil guardado. Consulta tu semáforo de alimentos personalizado.</p>
       <router-link to="/semaforo" class="btn btn-outline btn-full">Ver semáforo 🚦</router-link>
@@ -148,29 +173,71 @@ const isDirty = ref(false)
 const toast = reactive({ show: false, message: '', type: 'success' })
 
 const diseases = [
-  { key: 'celiaquía', label: 'Celiaquía', icon: '🌾' },
-  { key: 'hipertensión', label: 'Hipertensión', icon: '💊' },
-  { key: 'diabetes', label: 'Diabetes', icon: '🩸' },
+  { key: 'celiaquía',    label: 'Celiaquía',    icon: '🌾' },
+  { key: 'hipertension', label: 'Hipertensión', icon: '💊' },
+  { key: 'diabetes_t2',  label: 'Diabetes',     icon: '🩸' },
 ]
 
+// Límites para el input de fecha
+const fechaMaxima = computed(() => {
+  // Máximo: hace 1 año (menores no son el target)
+  const d = new Date()
+  d.setFullYear(d.getFullYear() - 1)
+  return d.toISOString().split('T')[0]
+})
+const fechaMinima = computed(() => {
+  // Mínimo: hace 120 años
+  const d = new Date()
+  d.setFullYear(d.getFullYear() - 120)
+  return d.toISOString().split('T')[0]
+})
+
+// Inicializar form desde el store (usa fecha_nacimiento directo)
 const defaultForm = () => ({
-  edad: store.profile?.edad || '',
-  sexo: store.profile?.sexo || '',
-  peso: store.profile?.peso || '',
-  estatura: store.profile?.estatura || '',
+  fecha_nacimiento: store.profile?.fecha_nacimiento || '',
+  sexo:      store.profile?.sexo      || '',
+  peso:      store.profile?.peso      || '',
+  estatura:  store.profile?.estatura  || '',
   actividad: store.profile?.actividad || '1.375',
-  condiciones: {
-    celiaquía: store.profile?.condiciones?.celiaquía || false,
-    hipertensión: store.profile?.condiciones?.hipertensión || false,
-    diabetes: store.profile?.condiciones?.diabetes || false,
+ condiciones: {
+   celiaquía:    store.profile?.condiciones?.celiaquía    || false,
+   hipertension: store.profile?.condiciones?.hipertension || false,
+    diabetes_t2:  store.profile?.condiciones?.diabetes_t2  || false,
   }
 })
 
 const form = reactive(defaultForm())
-const errors = reactive({ edad: '', sexo: '', peso: '', estatura: '' })
+const errors = reactive({ fecha_nacimiento: '', sexo: '', peso: '', estatura: '' })
+
+// Recalcular form si el perfil se carga después del montaje
+watch(() => store.profile, (p) => {
+  if (!p) return
+  form.fecha_nacimiento = p.fecha_nacimiento || ''
+  form.sexo      = p.sexo      || ''
+  form.peso      = p.peso      || ''
+  form.estatura  = p.estatura  || ''
+  form.actividad = p.actividad || '1.375'
+ form.condiciones.celiaquía    = p.condiciones?.celiaquía    || false
+form.condiciones.hipertension = p.condiciones?.hipertension || false
+form.condiciones.diabetes_t2  = p.condiciones?.diabetes_t2  || false
+  isDirty.value = false
+}, { immediate: true })
 
 watch(form, () => { isDirty.value = true }, { deep: true })
 
+// ── Edad calculada en tiempo real desde la fecha del formulario ──────────────
+const edadCalculada = computed(() => {
+  if (!form.fecha_nacimiento) return null
+  const [year, month, day] = form.fecha_nacimiento.split('-').map(Number)
+  const nac = new Date(year, month - 1, day)
+  const hoy = new Date()
+  let edad = hoy.getFullYear() - nac.getFullYear()
+  const cumple = new Date(hoy.getFullYear(), nac.getMonth(), nac.getDate())
+  if (hoy < cumple) edad--
+  return edad >= 0 && edad <= 120 ? edad : null
+})
+
+// ── Métricas del perfil ──────────────────────────────────────────────────────
 const initials = computed(() => {
   const n = store.authUser?.name || ''
   return n.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
@@ -186,21 +253,37 @@ const imcColor = computed(() => {
   const v = parseFloat(imc.value)
   if (isNaN(v)) return 'var(--gray-400)'
   if (v < 18.5) return '#4361EE'
-  if (v < 25) return '#00C896'
-  if (v < 30) return '#FFB800'
+  if (v < 25)   return '#00C896'
+  if (v < 30)   return '#FFB800'
   return '#FF4757'
 })
 const imcLabel = computed(() => {
   const v = parseFloat(imc.value)
   if (isNaN(v)) return '—'
   if (v < 18.5) return 'Bajo peso'
-  if (v < 25) return 'Normal'
-  if (v < 30) return 'Sobrepeso'
+  if (v < 25)   return 'Normal'
+  if (v < 30)   return 'Sobrepeso'
   return 'Obesidad'
 })
 
+// TMB/TDEE usando la edad calculada en tiempo real
+const tmbPreview = computed(() => {
+  const { peso, estatura, sexo } = form
+  const edad = edadCalculada.value
+  if (!peso || !estatura || !edad || !sexo) return '—'
+  const val = sexo === 'M'
+    ? 10 * peso + 6.25 * estatura - 5 * edad + 5
+    : 10 * peso + 6.25 * estatura - 5 * edad - 161
+  return Math.round(val)
+})
+const tdeePreview = computed(() => {
+  if (tmbPreview.value === '—') return '—'
+  return Math.round(tmbPreview.value * parseFloat(form.actividad))
+})
+
+// Para la tarjeta de resumen (usa datos guardados del store)
 const tmb = computed(() => {
-  const { peso, estatura, edad, sexo } = form
+  const { peso, estatura, edad, sexo } = store.profile || {}
   if (!peso || !estatura || !edad || !sexo) return '—'
   const val = sexo === 'M'
     ? 10 * peso + 6.25 * estatura - 5 * edad + 5
@@ -209,13 +292,22 @@ const tmb = computed(() => {
 })
 const tdee = computed(() => {
   if (tmb.value === '—') return '—'
-  return Math.round(tmb.value * parseFloat(form.actividad))
+  return Math.round(tmb.value * parseFloat(store.profile?.actividad || 1.375))
 })
 
+// ── Validación ───────────────────────────────────────────────────────────────
 function v(field) {
-  if (field === 'edad') errors.edad = (!form.edad || form.edad < 1 || form.edad > 120) ? 'Edad inválida (1–120).' : ''
-  if (field === 'sexo') errors.sexo = !form.sexo ? 'Selecciona una opción.' : ''
-  if (field === 'peso') errors.peso = (!form.peso || form.peso < 20 || form.peso > 300) ? 'Peso inválido (20–300 kg).' : ''
+  if (field === 'fecha_nacimiento') {
+    if (!form.fecha_nacimiento) {
+      errors.fecha_nacimiento = 'La fecha de nacimiento es requerida.'
+    } else if (edadCalculada.value === null || edadCalculada.value < 1 || edadCalculada.value > 120) {
+      errors.fecha_nacimiento = 'Fecha inválida (edad entre 1 y 120 años).'
+    } else {
+      errors.fecha_nacimiento = ''
+    }
+  }
+  if (field === 'sexo')     errors.sexo     = !form.sexo ? 'Selecciona una opción.' : ''
+  if (field === 'peso')     errors.peso     = (!form.peso || form.peso < 20 || form.peso > 300) ? 'Peso inválido (20–300 kg).' : ''
   if (field === 'estatura') errors.estatura = (!form.estatura || form.estatura < 50 || form.estatura > 250) ? 'Estatura inválida (50–250 cm).' : ''
 }
 
@@ -225,7 +317,7 @@ function showToast(msg, type) {
 }
 
 async function saveProfile() {
-  ['edad', 'sexo', 'peso', 'estatura'].forEach(f => v(f))
+  ['fecha_nacimiento', 'sexo', 'peso', 'estatura'].forEach(f => v(f))
   if (Object.values(errors).some(e => e)) {
     showToast('Corrige los errores antes de guardar.', 'error')
     return
@@ -233,7 +325,7 @@ async function saveProfile() {
   saving.value = true
   showToast('Guardando perfil...', 'loading')
   try {
-    await store.saveProfile({ ...form })   // <-- ahora es async
+    await store.saveProfile({ ...form })
     isDirty.value = false
     showToast('¡Perfil actualizado correctamente! ✅', 'success')
   } catch (e) {
@@ -274,7 +366,10 @@ async function saveProfile() {
 .caloric-header span { font-size: 28px; }
 .caloric-header h4 { font-size: 15px; font-weight: 700; }
 .caloric-header p { font-size: 12px; color: var(--gray-400); }
-.caloric-values { display: flex; align-items: center; justify-content: space-around; background: var(--gray-50); border-radius: var(--radius-md); padding: 16px; }
+.caloric-values {
+  display: flex; align-items: center; justify-content: space-around;
+  background: var(--gray-50); border-radius: var(--radius-md); padding: 16px;
+}
 .caloric-item { text-align: center; }
 .caloric-num { display: block; font-size: 28px; font-weight: 800; color: var(--gray-900); }
 .caloric-label { font-size: 12px; color: var(--gray-500); }
@@ -286,6 +381,23 @@ async function saveProfile() {
 .section-hint { font-size: 13px; color: var(--gray-500); margin-top: 2px; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .span-2 { grid-column: 1 / -1; }
+
+/* Hint de edad bajo el input de fecha */
+.edad-hint {
+  display: inline-block; margin-top: 4px;
+  font-size: 12px; font-weight: 600; color: var(--green-dark);
+  background: var(--green-light); padding: 2px 10px; border-radius: 99px;
+}
+
+/* Preview TDEE en tiempo real */
+.tdee-preview {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--green-light); border: 1px solid var(--green);
+  border-radius: var(--radius-sm); padding: 10px 14px;
+  font-size: 14px; color: var(--green-dark);
+}
+.tdee-preview strong { font-size: 16px; font-weight: 800; }
+.tdee-preview small { color: var(--gray-500); font-size: 12px; }
 
 .diseases-section { display: flex; flex-direction: column; gap: 10px; }
 .disease-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -315,6 +427,9 @@ async function saveProfile() {
 .cta-card { display: flex; flex-direction: column; gap: 12px; text-align: center; }
 .cta-card p { font-size: 14px; color: var(--gray-600); }
 
-.spinner-sm { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4); border-top-color: white; border-radius: 50%; animation: spin .7s linear infinite; }
+.spinner-sm {
+  width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4);
+  border-top-color: white; border-radius: 50%; animation: spin .7s linear infinite;
+}
 @keyframes spin { to { transform: rotate(360deg); } }
 </style>

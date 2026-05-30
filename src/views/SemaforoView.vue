@@ -189,7 +189,7 @@ const semaforos = [
   { key: 'rojo', label: 'Evitar', desc: 'Pueden afectar negativamente tu salud según tus padecimientos.' },
 ]
 
-const condLabels = { celiaquía: '🌾 Celiaquía', hipertensión: '💊 Hipertensión', diabetes: '🩸 Diabetes' }
+const condLabels = { celiaquía: '🌾 Celiaquía', hipertension: '💊 Hipertensión', diabetes_t2: '🩸 Diabetes tipo 2' }
 
 const activeConditions = computed(() => {
   const c = store.profile?.condiciones || {}
@@ -230,7 +230,7 @@ const counts = computed(() => ({
   rojo: allAlimentos.value.filter(a => clasificacion(a) === 'rojo').length,
 }))
 
-async function loadData() {
+async function loadData(force = false) {
   if (!store.hasProfile) return
   loadingData.value = true
   dataError.value = ''
@@ -241,7 +241,7 @@ async function loadData() {
   }, 200)
 
   try {
-    const data = await getAlimentos()
+    const data = await getAlimentos(force)   // ← pasa force
     clearInterval(ticker)
     loadProgress.value = 100
     await new Promise(r => setTimeout(r, 300))
@@ -262,6 +262,17 @@ onMounted(() => {
   loadData()
   window.addEventListener('foodlight:close-modal', onCloseModal)
 })
+
+// Recargar cuando cambien las condiciones del perfil
+watch(
+  () => store.profile?.condiciones,
+  (newConds, oldConds) => {
+    if (JSON.stringify(newConds) !== JSON.stringify(oldConds)) {
+      loadData(true)   // ← force: true
+    }
+  },
+  { deep: true }
+)
 onUnmounted(() => {
   window.removeEventListener('foodlight:close-modal', onCloseModal)
 })
