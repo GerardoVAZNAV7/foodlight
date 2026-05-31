@@ -118,7 +118,9 @@
       </div>
     </template>
 
-    <!-- Modal para agregar entrada -->
+    <!-- ══════════════════════════════════════════════
+         MODAL AGREGAR ENTRADA
+    ══════════════════════════════════════════════ -->
     <transition name="modal">
       <div v-if="modal.open" class="modal-overlay" @click.self="cerrarModal">
         <div class="modal-card">
@@ -127,13 +129,13 @@
             <button class="modal-close" @click="cerrarModal">✕</button>
           </div>
 
-          <!-- Tabs -->
+          <!-- Tabs Alimento / Receta -->
           <div class="modal-tabs">
             <button class="modal-tab" :class="{ active: modal.origen === 'alimento' }" @click="switchOrigen('alimento')">🥗 Alimento</button>
             <button class="modal-tab" :class="{ active: modal.origen === 'receta' }"   @click="switchOrigen('receta')">🍽️ Receta</button>
           </div>
 
-          <!-- Tab: Alimento -->
+          <!-- ─── Tab: Alimento ─────────────────────────────── -->
           <template v-if="modal.origen === 'alimento'">
             <input v-model="modal.busqueda" type="search" class="input"
               placeholder="🔍 Buscar alimento..." @input="buscarAlimentos" />
@@ -157,17 +159,43 @@
                 <input v-model.number="modal.cantidad" type="number" min="1" max="2000" class="input" />
               </div>
               <div class="preview-kcal">
-                <span>≈</span>
-                <strong>{{ kcalPreview }}</strong>
-                <small>kcal</small>
+                <span>≈</span><strong>{{ kcalPreview }}</strong><small>kcal</small>
               </div>
             </div>
           </template>
 
-          <!-- Tab: Receta -->
+          <!-- ─── Tab: Receta ───────────────────────────────── -->
           <template v-else>
+
+            <!-- Favoritas (sin buscador) -->
+            <div v-if="favoritasModal.length" class="fav-section">
+              <div class="fav-section-label">❤️ Mis favoritas</div>
+              <div class="resultados-list">
+                <button
+                  v-for="r in favoritasModal" :key="'fav-' + r.id"
+                  class="resultado-item fav-item" :class="{ selected: modal.seleccionado?.id === r.id }"
+                  @click="seleccionarReceta(r)"
+                >
+                  <span class="r-dot" :class="colorReceta(r)"></span>
+                  <span class="r-nombre">{{ r.nombre }}</span>
+                  <span class="r-badge-fav">❤️</span>
+                  <span class="r-kcal r-kcal-receta">
+                    <template v-if="r._kcalPorPorcion != null">{{ r._kcalPorPorcion }} kcal/p</template>
+                    <template v-else>{{ r.tiempo_min }} min</template>
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Separador si hay favoritas -->
+            <div v-if="favoritasModal.length" class="fav-divider">
+              <span>Buscar más recetas</span>
+            </div>
+
+            <!-- Buscador -->
             <input v-model="modal.busqueda" type="search" class="input"
-              placeholder="🔍 Buscar receta..." @input="buscarRecetas" />
+              :placeholder="favoritasModal.length ? '🔍 Buscar otras recetas...' : '🔍 Buscar receta...'"
+              @input="buscarRecetas" />
 
             <div v-if="modal.cargandoRecetas" class="loading-recetas">
               <div class="spinner-sm-verde"></div>
@@ -180,9 +208,9 @@
                 class="resultado-item" :class="{ selected: modal.seleccionado?.id === r.id }"
                 @click="seleccionarReceta(r)"
               >
-                <!-- Dot con color semáforo real de la receta -->
                 <span class="r-dot" :class="colorReceta(r)"></span>
                 <span class="r-nombre">{{ r.nombre }}</span>
+                <span v-if="favoritosIds.has(r.id)" class="r-badge-fav">❤️</span>
                 <span class="r-kcal r-kcal-receta">
                   <template v-if="r._kcalPorPorcion != null">{{ r._kcalPorPorcion }} kcal/p</template>
                   <template v-else>{{ r.tiempo_min }} min</template>
@@ -192,10 +220,11 @@
             <p v-else-if="modal.busqueda.length > 0 && !modal.cargandoRecetas" class="no-results">
               Sin resultados para "{{ modal.busqueda }}"
             </p>
-            <p v-else-if="modal.busqueda.length === 0" class="no-results hint">
+            <p v-else-if="modal.busqueda.length === 0 && !favoritasModal.length" class="no-results hint">
               Escribe para buscar recetas disponibles
             </p>
 
+            <!-- Porciones al seleccionar -->
             <div v-if="modal.seleccionado" class="cantidad-row">
               <div class="field">
                 <label>Porciones</label>
@@ -209,9 +238,7 @@
                 </div>
               </div>
               <div class="preview-kcal" :class="{ 'preview-unknown': kcalPreviewReceta === '?' }">
-                <span>≈</span>
-                <strong>{{ kcalPreviewReceta }}</strong>
-                <small>kcal</small>
+                <span>≈</span><strong>{{ kcalPreviewReceta }}</strong><small>kcal</small>
               </div>
             </div>
 
@@ -251,14 +278,16 @@ import StatusToast from '@/components/StatusToast.vue'
 const store = useUserStore()
 const { getAlimentos, clasificarAlimento } = useFoodData()
 
-// ── Fecha ──────────────────────────────────────────────────────────────────────
+// ── Fecha ──────────────────────────────────────────────────────────────────
 const fechaActual = ref(hoy())
 const entradas    = ref([])
 const guardando   = ref(false)
 const toast       = reactive({ show: false, message: '', type: 'success' })
 
-// Mapa de alimentos cargado una sola vez
-const alimentoMap = ref(new Map())
+// Mapa de alimentos y favoritas cargados al montar
+const alimentoMap  = ref(new Map())
+const favoritosIds = ref(new Set())       // IDs de recetas favoritas del usuario
+const favoritasData = ref([])             // Datos completos de recetas favoritas (para el modal)
 
 function hoy() {
   const d  = new Date()
@@ -279,7 +308,7 @@ const fechaFormateada = computed(() =>
     .toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
 )
 
-// ── TDEE ───────────────────────────────────────────────────────────────────────
+// ── TDEE ───────────────────────────────────────────────────────────────────
 const tdee = computed(() => {
   const p = store.profile
   if (!p?.peso || !p?.estatura || !p?.edad || !p?.sexo) return 2000
@@ -289,24 +318,67 @@ const tdee = computed(() => {
   return Math.round(tmb * parseFloat(p.actividad || 1.375))
 })
 const condiciones = computed(() => store.profile?.condiciones || {})
+const userId      = computed(() => store.authUser?.id)
 
-// ── user_id ─────────────────────────────────────────────────────────────────
-const userId = computed(() => store.authUser?.id)
-
-// ── Normalizar texto para búsqueda en mapa ─────────────────────────────────
+// ── Normalizar ──────────────────────────────────────────────────────────────
 function normalizar(str) {
   if (!str) return ''
   return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
 }
 
-// ── Cargar mapa de alimentos (una sola vez) ────────────────────────────────
+// ── Cargar mapa de alimentos ────────────────────────────────────────────────
 async function ensureAlimentoMap() {
   if (alimentoMap.value.size > 0) return
   const data = await getAlimentos()
   alimentoMap.value = new Map(data.map(a => [normalizar(a.nombre), a]))
 }
 
-// ── Tipos de comida ────────────────────────────────────────────────────────────
+// ── Cargar favoritas del usuario (con datos completos para el modal) ─────────
+async function loadFavoritos() {
+  if (!userId.value) return
+  const { data } = await supabase
+    .from('favoritos_recetas')
+    .select('receta_id, recetas(*)')
+    .eq('usuario_id', userId.value)
+  const rows = data || []
+  favoritosIds.value = new Set(rows.map(f => f.receta_id))
+
+  // Enriquecer con nutrición y color para el modal
+  const recetasBase = rows.map(f => f.recetas).filter(Boolean)
+  const ids = recetasBase.map(r => r.id)
+
+  if (!ids.length) { favoritasData.value = []; return }
+
+  // Ingredientes de las favoritas
+  const { data: ingsData } = await supabase
+    .from('receta_ingredientes')
+    .select('receta_id, cantidad, alimento_nombre, notas')
+    .in('receta_id', ids)
+
+  const ingPorReceta = {}
+  for (const ing of ingsData || []) {
+    if (!ingPorReceta[ing.receta_id]) ingPorReceta[ing.receta_id] = []
+    ingPorReceta[ing.receta_id].push(ing)
+  }
+
+  // Calcular kcal por porción para cada favorita
+  const enriquecidas = await Promise.all(recetasBase.map(async rec => {
+    const nutricion = await calcularNutricionReceta(rec.id)
+    return {
+      ...rec,
+      _ingredientes:   ingPorReceta[rec.id] || [],
+      _kcalPorPorcion: nutricion ? Math.round(nutricion.kcal / (rec.porciones || 1)) : null,
+      _kcalTotal:      nutricion ? Math.round(nutricion.kcal) : null,
+      _nutricionTotal: nutricion,
+    }
+  }))
+  favoritasData.value = enriquecidas
+}
+
+// ── Favoritas filtradas para el modal (visible sin buscador) ────────────────
+const favoritasModal = computed(() => favoritasData.value)
+
+// ── Tipos de comida ─────────────────────────────────────────────────────────
 const mealTypes = [
   { key: 'desayuno', label: 'Desayuno', icon: '🌅' },
   { key: 'comida',   label: 'Comida',   icon: '☀️'  },
@@ -385,32 +457,26 @@ const metricasExtra = computed(() => {
   return ex
 })
 
-// ── Color semáforo de un alimento del modal ────────────────────────────────
+// ── Color semáforo alimento ─────────────────────────────────────────────────
 function colorAlimento(a) {
   return clasificarAlimento(a, condiciones.value)
 }
 
-// ── Color semáforo de una receta: peor color entre sus ingredientes ─────────
-// Orden de prioridad: rojo > amarillo > verde
+// ── Color semáforo receta (peor ingrediente) ────────────────────────────────
 function colorReceta(receta) {
   const ings = receta._ingredientes || []
-  if (ings.some(ing => {
+  const evaluar = (color) => ings.some(ing => {
     const a = alimentoMap.value.get(normalizar(ing.alimento_nombre || ing.notas || ''))
-    return a && clasificarAlimento(a, condiciones.value) === 'rojo'
-  })) return 'rojo'
-  if (ings.some(ing => {
-    const a = alimentoMap.value.get(normalizar(ing.alimento_nombre || ing.notas || ''))
-    return a && clasificarAlimento(a, condiciones.value) === 'amarillo'
-  })) return 'amarillo'
+    return a && clasificarAlimento(a, condiciones.value) === color
+  })
+  if (evaluar('rojo'))     return 'rojo'
+  if (evaluar('amarillo')) return 'amarillo'
   return 'verde'
 }
 
-// ── color_semaforo para guardar en DB (receta) ─────────────────────────────
-function calcularColorReceta(receta) {
-  return colorReceta(receta)
-}
+function calcularColorReceta(receta) { return colorReceta(receta) }
 
-// ── Modal ──────────────────────────────────────────────────────────────────────
+// ── Modal ────────────────────────────────────────────────────────────────────
 const modal = reactive({
   open: false, tipo: 'desayuno', origen: 'alimento',
   busqueda: '', resultados: [], resultadosRecetas: [],
@@ -428,12 +494,15 @@ function abrirModal(tipo) {
 }
 function cerrarModal() { modal.open = false }
 function switchOrigen(o) {
-  modal.origen = o; modal.busqueda = ''
-  modal.resultados = []; modal.resultadosRecetas = []
-  modal.seleccionado = null; modal.cargandoRecetas = false
+  modal.origen = o
+  modal.busqueda = ''
+  modal.resultados = []
+  modal.resultadosRecetas = []
+  modal.seleccionado = null
+  modal.cargandoRecetas = false
 }
 
-// ── Búsqueda alimentos ─────────────────────────────────────────────────────
+// ── Búsqueda alimentos ───────────────────────────────────────────────────────
 let alimentoTimer = null
 function buscarAlimentos() {
   clearTimeout(alimentoTimer)
@@ -452,7 +521,7 @@ function buscarAlimentos() {
   }, 200)
 }
 
-// ── Nutrición de receta via JOIN ───────────────────────────────────────────
+// ── Nutrición de receta via JOIN ─────────────────────────────────────────────
 async function calcularNutricionReceta(recetaId) {
   const { data: ings, error } = await supabase
     .from('receta_ingredientes')
@@ -464,18 +533,15 @@ async function calcularNutricionReceta(recetaId) {
     .eq('receta_id', recetaId)
 
   if (error || !ings?.length) return null
-
   const tot = { kcal:0, prot:0, carbs:0, grasas:0, fibra:0, sodio:0, azucar:0 }
   let encontrados = 0
-
   for (const ing of ings) {
-    const a = ing.alimentos
-    if (!a) continue
-    const cantidadG   = parseFloat(ing.cantidad) || 0
-    const pesoPorcion = parseFloat(a.peso_neto_g) || 100
+    const a = ing.alimentos; if (!a) continue
+    const cantidadG = parseFloat(ing.cantidad) || 0
+    const pesoP     = parseFloat(a.peso_neto_g) || 100
     if (!cantidadG) continue
     encontrados++
-    const f = cantidadG / pesoPorcion
+    const f = cantidadG / pesoP
     tot.kcal   += (parseFloat(a.energia_kcal)       || 0) * f
     tot.prot   += (parseFloat(a.proteina_g)         || 0) * f
     tot.carbs  += (parseFloat(a.hidratos_carbono_g) || 0) * f
@@ -484,13 +550,12 @@ async function calcularNutricionReceta(recetaId) {
     tot.sodio  += (parseFloat(a.sodio_mg)           || 0) * f
     tot.azucar += (parseFloat(a.azucar_g)           || 0) * f
   }
-
   if (!encontrados) return null
   for (const k of Object.keys(tot)) tot[k] = Math.round(tot[k] * 10) / 10
   return tot
 }
 
-// ── Búsqueda recetas — también carga ingredientes para calcular color ───────
+// ── Búsqueda recetas (buscador manual) ──────────────────────────────────────
 let recetaTimer = null
 async function buscarRecetas() {
   const q = modal.busqueda.trim()
@@ -500,7 +565,6 @@ async function buscarRecetas() {
     modal.cargandoRecetas = true
     modal.resultadosRecetas = []
     try {
-      // Aseguramos que el mapa de alimentos esté listo
       await ensureAlimentoMap()
 
       const { data, error } = await supabase
@@ -513,14 +577,12 @@ async function buscarRecetas() {
 
       if (error || !data?.length) return
 
-      // Para cada receta traemos sus ingredientes (para color semáforo)
       const ids = data.map(r => r.id)
       const { data: ingsData } = await supabase
         .from('receta_ingredientes')
         .select('receta_id, cantidad, alimento_nombre, notas')
         .in('receta_id', ids)
 
-      // Agrupar ingredientes por receta
       const ingPorReceta = {}
       for (const ing of ingsData || []) {
         if (!ingPorReceta[ing.receta_id]) ingPorReceta[ing.receta_id] = []
@@ -532,7 +594,7 @@ async function buscarRecetas() {
           const nutricion = await calcularNutricionReceta(rec.id)
           return {
             ...rec,
-            _ingredientes: ingPorReceta[rec.id] || [],
+            _ingredientes:   ingPorReceta[rec.id] || [],
             _kcalPorPorcion: nutricion ? Math.round(nutricion.kcal / (rec.porciones || 1)) : null,
             _kcalTotal:      nutricion ? Math.round(nutricion.kcal) : null,
             _nutricionTotal: nutricion,
@@ -569,7 +631,7 @@ const kcalPreviewReceta = computed(() => {
   return Math.round(kpp * (modal.porciones || 1))
 })
 
-// ── CRUD Diario ────────────────────────────────────────────────────────────────
+// ── CRUD Diario ──────────────────────────────────────────────────────────────
 async function cargarEntradas() {
   if (!userId.value) return
   const { data, error } = await supabase
@@ -613,16 +675,13 @@ async function guardarEntrada() {
         cantidad_g:      modal.cantidad,
       })
     } else {
-      const rec     = modal.seleccionado
-      const porTot  = rec.porciones || 1
-      const porUsu  = modal.porciones || 1
-      const factP   = porUsu / porTot
-      const nutri   = rec._nutricionTotal
+      const rec    = modal.seleccionado
+      const porTot = rec.porciones || 1
+      const porUsu = modal.porciones || 1
+      const factP  = porUsu / porTot
+      const nutri  = rec._nutricionTotal
       const kcalCal = typeof kcalPreviewReceta.value === 'number' ? kcalPreviewReceta.value : null
-
-      // Color semáforo de la receta: peor ingrediente gana
       const colorSem = calcularColorReceta(rec)
-
       Object.assign(payload, {
         receta_id:        rec.id,
         receta_nombre:    rec.nombre,
@@ -670,6 +729,7 @@ watch(fechaActual, cargarEntradas)
 onMounted(async () => {
   if (store.hasProfile) {
     await ensureAlimentoMap()
+    await loadFavoritos()
     cargarEntradas()
   }
 })
@@ -681,18 +741,9 @@ onMounted(async () => {
 .diario-header { display: flex; flex-direction: column; gap: 10px; }
 .header-top { display: flex; align-items: center; justify-content: space-between; }
 .header-top h2 { font-size: 22px; font-weight: 800; }
-.fecha-badge {
-  font-size: 12px; font-weight: 600; color: var(--gray-500);
-  background: var(--gray-100); padding: 4px 12px;
-  border-radius: 99px; text-transform: capitalize;
-}
+.fecha-badge { font-size: 12px; font-weight: 600; color: var(--gray-500); background: var(--gray-100); padding: 4px 12px; border-radius: 99px; text-transform: capitalize; }
 .nav-dias { display: flex; gap: 8px; }
-.nav-btn {
-  flex: 1; padding: 8px 14px; border-radius: var(--radius-sm);
-  background: var(--gray-100); border: 2px solid transparent;
-  font-size: 13px; font-weight: 600; color: var(--gray-600);
-  cursor: pointer; transition: all .2s;
-}
+.nav-btn { flex: 1; padding: 8px 14px; border-radius: var(--radius-sm); background: var(--gray-100); border: 2px solid transparent; font-size: 13px; font-weight: 600; color: var(--gray-600); cursor: pointer; transition: all .2s; }
 .nav-btn:hover:not(:disabled) { background: var(--gray-200); }
 .nav-btn.today { background: var(--green-light); color: var(--green-dark); border-color: var(--green); }
 .nav-btn:disabled { opacity: .4; cursor: not-allowed; }
@@ -712,11 +763,7 @@ onMounted(async () => {
 
 .macros-row { display: flex; justify-content: space-around; gap: 8px; }
 .macro-item { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.macro-circle {
-  width: 64px; height: 64px; border-radius: 50%;
-  background: conic-gradient(var(--color) var(--pct), var(--gray-100) 0);
-  display: flex; align-items: center; justify-content: center; position: relative;
-}
+.macro-circle { width: 64px; height: 64px; border-radius: 50%; background: conic-gradient(var(--color) var(--pct), var(--gray-100) 0); display: flex; align-items: center; justify-content: center; position: relative; }
 .macro-circle::before { content:''; position:absolute; inset:8px; background:white; border-radius:50%; }
 .macro-num { position:relative; z-index:1; font-size:11px; font-weight:700; color:var(--gray-800); }
 .macro-lbl { font-size:11px; color:var(--gray-500); font-weight:600; }
@@ -773,6 +820,7 @@ onMounted(async () => {
 .empty-card { display:flex; flex-direction:column; align-items:center; gap:12px; text-align:center; padding:40px 24px; }
 .empty-icon { font-size:48px; }
 
+/* ── Modal ── */
 .modal-overlay { position:fixed; inset:0; z-index:500; background:rgba(0,0,0,.5); backdrop-filter:blur(4px); display:flex; align-items:flex-end; justify-content:center; }
 .modal-card { width:100%; max-width:480px; background:white; border-radius:24px 24px 0 0; padding:24px; display:flex; flex-direction:column; gap:16px; max-height:90vh; overflow-y:auto; }
 .modal-header { display:flex; align-items:center; justify-content:space-between; }
@@ -781,7 +829,28 @@ onMounted(async () => {
 .modal-tabs { display:flex; gap:8px; }
 .modal-tab { flex:1; padding:10px; border-radius:var(--radius-sm); background:var(--gray-100); border:2px solid transparent; font-size:13px; font-weight:600; color:var(--gray-500); cursor:pointer; transition:all .2s; }
 .modal-tab.active { border-color:var(--green); background:var(--green-light); color:var(--green-dark); }
-.resultados-list { display:flex; flex-direction:column; gap:4px; max-height:220px; overflow-y:auto; }
+
+/* ── Sección favoritas dentro del modal ── */
+.fav-section { display: flex; flex-direction: column; gap: 8px; }
+.fav-section-label {
+  font-size: 12px; font-weight: 800; color: var(--gray-600);
+  text-transform: uppercase; letter-spacing: .05em;
+  display: flex; align-items: center; gap: 6px;
+}
+.fav-divider {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 11px; font-weight: 600; color: var(--gray-400);
+}
+.fav-divider::before, .fav-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--gray-200);
+}
+/* Item favorito tiene fondo levemente distinto */
+.fav-item { background: #fff8f8 !important; }
+.fav-item.selected { background: var(--green-light) !important; }
+
+.r-badge-fav { font-size: 12px; flex-shrink: 0; }
+
+.resultados-list { display:flex; flex-direction:column; gap:4px; max-height:200px; overflow-y:auto; }
 .resultado-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:var(--radius-sm); background:var(--gray-50); border:2px solid transparent; text-align:left; cursor:pointer; transition:all .15s; }
 .resultado-item:hover { background:var(--gray-100); }
 .resultado-item.selected { border-color:var(--green); background:var(--green-light); }

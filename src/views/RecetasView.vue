@@ -63,36 +63,79 @@
         </small>
       </div>
 
-      <!-- Grid de recetas -->
-      <div v-else class="recipe-grid">
-        <div
-          v-for="recipe in recetas" :key="recipe.id"
-          class="recipe-card card"
-          @click="openRecipe(recipe)"
-        >
-          <div class="recipe-img">
-            <img
-              v-if="recipe.imagen_url"
-              :src="recipe.imagen_url"
-              :alt="recipe.nombre"
-              class="recipe-photo"
-              @error="onImgError($event)"
-            />
-            <div v-else class="recipe-img-fallback">
-              <span>{{ currentMeal.icon }}</span>
-            </div>
+      <template v-else>
+        <!-- Sección favoritas (solo si hay alguna en esta categoría) -->
+        <div v-if="recetasFavoritas.length" class="section-block">
+          <div class="section-label">
+            <span class="section-label-icon">❤️</span>
+            <span>Mis favoritas</span>
           </div>
-
-          <div class="recipe-body">
-            <h4 class="recipe-name">{{ recipe.nombre }}</h4>
-            <p class="recipe-desc">{{ recipe.descripcion }}</p>
-            <div class="recipe-meta">
-              <span class="meta-item">⏱ {{ recipe.tiempo_min }} min</span>
-              <span class="meta-item">👤 {{ recipe.porciones }} porciones</span>
+          <div class="recipe-grid">
+            <div
+              v-for="recipe in recetasFavoritas" :key="'fav-' + recipe.id"
+              class="recipe-card card"
+              @click="openRecipe(recipe)"
+            >
+              <div class="recipe-img">
+                <img v-if="recipe.imagen_url" :src="recipe.imagen_url" :alt="recipe.nombre"
+                  class="recipe-photo" @error="onImgError($event)" />
+                <div v-else class="recipe-img-fallback"><span>{{ currentMeal.icon }}</span></div>
+                <!-- Botón favorito -->
+                <button
+                  class="fav-btn fav-btn-img"
+                  :class="{ active: favoritosIds.has(recipe.id) }"
+                  @click.stop="toggleFavorito(recipe)"
+                  :title="favoritosIds.has(recipe.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'"
+                >{{ favoritosIds.has(recipe.id) ? '❤️' : '🤍' }}</button>
+              </div>
+              <div class="recipe-body">
+                <h4 class="recipe-name">{{ recipe.nombre }}</h4>
+                <p class="recipe-desc">{{ recipe.descripcion }}</p>
+                <div class="recipe-meta">
+                  <span class="meta-item">⏱ {{ recipe.tiempo_min }} min</span>
+                  <span class="meta-item">👤 {{ recipe.porciones }} porciones</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+
+        <!-- Todas las recetas -->
+        <div class="section-block">
+          <div v-if="recetasFavoritas.length" class="section-label">
+            <span class="section-label-icon">🍽️</span>
+            <span>Todas las recetas</span>
+          </div>
+          <div class="recipe-grid">
+            <div
+              v-for="recipe in recetas" :key="recipe.id"
+              class="recipe-card card"
+              @click="openRecipe(recipe)"
+            >
+              <div class="recipe-img">
+                <img v-if="recipe.imagen_url" :src="recipe.imagen_url" :alt="recipe.nombre"
+                  class="recipe-photo" @error="onImgError($event)" />
+                <div v-else class="recipe-img-fallback"><span>{{ currentMeal.icon }}</span></div>
+                <!-- Botón favorito -->
+                <button
+                  class="fav-btn fav-btn-img"
+                  :class="{ active: favoritosIds.has(recipe.id) }"
+                  @click.stop="toggleFavorito(recipe)"
+                  :title="favoritosIds.has(recipe.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'"
+                >{{ favoritosIds.has(recipe.id) ? '❤️' : '🤍' }}</button>
+              </div>
+              <div class="recipe-body">
+                <h4 class="recipe-name">{{ recipe.nombre }}</h4>
+                <p class="recipe-desc">{{ recipe.descripcion }}</p>
+                <div class="recipe-meta">
+                  <span class="meta-item">⏱ {{ recipe.tiempo_min }} min</span>
+                  <span class="meta-item">👤 {{ recipe.porciones }} porciones</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
     </template>
 
     <!-- Modal detalle de receta -->
@@ -101,21 +144,25 @@
         <div class="modal-card">
 
           <div class="modal-img-wrap">
-            <img
-              v-if="selectedRecipe.imagen_url"
-              :src="selectedRecipe.imagen_url"
-              :alt="selectedRecipe.nombre"
-              class="modal-photo"
-              @error="onImgError($event)"
-            />
-            <div v-else class="modal-img-fallback">
-              <span>{{ currentMeal.icon }}</span>
-            </div>
+            <img v-if="selectedRecipe.imagen_url" :src="selectedRecipe.imagen_url"
+              :alt="selectedRecipe.nombre" class="modal-photo" @error="onImgError($event)" />
+            <div v-else class="modal-img-fallback"><span>{{ currentMeal.icon }}</span></div>
             <button class="modal-close" @click="selectedRecipe = null">✕</button>
+            <!-- Favorito en modal -->
+            <button
+              class="fav-btn fav-btn-modal"
+              :class="{ active: favoritosIds.has(selectedRecipe.id) }"
+              @click.stop="toggleFavorito(selectedRecipe)"
+              :title="favoritosIds.has(selectedRecipe.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'"
+            >
+              {{ favoritosIds.has(selectedRecipe.id) ? '❤️' : '🤍' }}
+            </button>
           </div>
 
           <div class="modal-body">
-            <h3>{{ selectedRecipe.nombre }}</h3>
+            <div class="modal-title-row">
+              <h3>{{ selectedRecipe.nombre }}</h3>
+            </div>
             <p class="modal-desc">{{ selectedRecipe.descripcion }}</p>
 
             <div class="modal-meta">
@@ -171,26 +218,28 @@ import { useFoodData } from '@/composables/useFoodData'
 const store = useUserStore()
 const { getAlimentos, clasificarAlimento } = useFoodData()
 
-const mealTab = ref('desayuno')
+const mealTab       = ref('desayuno')
 const selectedRecipe = ref(null)
-const recetas = ref([])
-const loading = ref(false)
-const error = ref(null)
+const recetas       = ref([])
+const loading       = ref(false)
+const error         = ref(null)
 
-// Mapa global de alimentos por nombre normalizado (compartido entre recetas)
-const alimentoMap = ref(new Map())
+// IDs de recetas favoritas del usuario (Set para O(1) lookup)
+const favoritosIds  = ref(new Set())
+
+// Mapa global de alimentos por nombre normalizado
+const alimentoMap   = ref(new Map())
 
 const condLabels = {
-  celiaquía: '🌾 Celiaquía',
+  celiaquía:    '🌾 Celiaquía',
   hipertensión: '💊 Hipertensión',
-  diabetes: '🩸 Diabetes',
+  diabetes:     '🩸 Diabetes',
 }
 
 const activeConditions = computed(() => {
   const c = store.profile?.condiciones || {}
   return Object.fromEntries(Object.entries(c).filter(([, v]) => v))
 })
-
 const hasActiveConditions = computed(() => Object.keys(activeConditions.value).length > 0)
 
 const tmb = computed(() => {
@@ -208,39 +257,75 @@ const mealTypes = [
   { key: 'cena',     label: 'Cena',     icon: '🌙' },
   { key: 'snack',    label: 'Snack',    icon: '🍎' },
 ]
-
 const currentMeal = computed(() => mealTypes.find(m => m.key === mealTab.value) || mealTypes[0])
 
-// ── Normaliza texto para comparar ──
+// Recetas favoritas filtradas por el tab actual
+const recetasFavoritas = computed(() =>
+  recetas.value.filter(r => favoritosIds.value.has(r.id))
+)
+
+// ── Normalizar ──────────────────────────────────────────────────────────────
 function normalizar(str) {
   if (!str) return ''
-  return str
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
+  return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
 }
 
-// ── Color semáforo de un ingrediente ──
+// ── Color semáforo de un ingrediente ───────────────────────────────────────
 function ingColor(ing) {
   if (!ing._alimento) return 'verde'
   return clasificarAlimento(ing._alimento, store.profile?.condiciones || {})
 }
 
-// ── Determina si una receta tiene algún ingrediente rojo ──
+// ── ¿Receta tiene ingrediente rojo? ────────────────────────────────────────
 function recetaTieneIngredienteRojo(ingredientes) {
   return ingredientes.some(ing => ing._alimento &&
     clasificarAlimento(ing._alimento, store.profile?.condiciones || {}) === 'rojo'
   )
 }
 
+// ── Cargar favoritos del usuario ────────────────────────────────────────────
+async function loadFavoritos() {
+  const userId = store.authUser?.id
+  if (!userId) return
+  const { data } = await supabase
+    .from('favoritos_recetas')
+    .select('receta_id')
+    .eq('usuario_id', userId)
+  favoritosIds.value = new Set((data || []).map(f => f.receta_id))
+}
+
+// ── Toggle favorito ─────────────────────────────────────────────────────────
+async function toggleFavorito(recipe) {
+  const userId = store.authUser?.id
+  if (!userId) return
+  const isFav = favoritosIds.value.has(recipe.id)
+
+  // Optimistic update
+  const newSet = new Set(favoritosIds.value)
+  if (isFav) {
+    newSet.delete(recipe.id)
+    favoritosIds.value = newSet
+    await supabase
+      .from('favoritos_recetas')
+      .delete()
+      .eq('usuario_id', userId)
+      .eq('receta_id', recipe.id)
+  } else {
+    newSet.add(recipe.id)
+    favoritosIds.value = newSet
+    await supabase
+      .from('favoritos_recetas')
+      .insert({ usuario_id: userId, receta_id: recipe.id })
+  }
+}
+
+// ── Cargar recetas ──────────────────────────────────────────────────────────
 async function loadRecetas(tipo) {
   loading.value = true
-  error.value = null
+  error.value   = null
   recetas.value = []
 
   try {
-    // 1) Recetas del tipo seleccionado
     const { data: recetasData, error: recetasErr } = await supabase
       .from('recetas')
       .select('*')
@@ -251,7 +336,6 @@ async function loadRecetas(tipo) {
     if (recetasErr) throw recetasErr
     if (!recetasData?.length) return
 
-    // 2) Ingredientes de esas recetas
     const ids = recetasData.map(r => r.id)
     const { data: ingredientesData, error: ingErr } = await supabase
       .from('receta_ingredientes')
@@ -261,31 +345,29 @@ async function loadRecetas(tipo) {
 
     if (ingErr) throw ingErr
 
-    // 3) Cargar mapa de alimentos (usa caché del composable)
+    // Mapa de alimentos
     const alimentosDB = await getAlimentos()
     alimentoMap.value = new Map(alimentosDB.map(a => [normalizar(a.nombre), a]))
 
-    // 4) Enriquecer ingredientes con su alimento (para semáforo)
+    // Enriquecer ingredientes con su alimento
     const ingEnriquecidos = (ingredientesData || []).map(ing => {
-      const nombreKey = normalizar(ing.alimento_nombre || ing.notas || '')
-      const alimento = alimentoMap.value.get(nombreKey) || null
+      const key     = normalizar(ing.alimento_nombre || ing.notas || '')
+      const alimento = alimentoMap.value.get(key) || null
       return { ...ing, _alimento: alimento }
     })
 
-    // 5) Agrupar ingredientes por receta_id
+    // Agrupar por receta
     const ingPorReceta = {}
     for (const ing of ingEnriquecidos) {
       if (!ingPorReceta[ing.receta_id]) ingPorReceta[ing.receta_id] = []
       ingPorReceta[ing.receta_id].push(ing)
     }
 
-    // 6) Combinar ingredientes con recetas
     const recetasCombinadas = recetasData.map(r => ({
       ...r,
       ingredientes: ingPorReceta[r.id] || [],
     }))
 
-    // 7) Filtrar: si el usuario tiene padecimientos, excluir recetas con ingredientes rojos
     if (hasActiveConditions.value) {
       recetas.value = recetasCombinadas.filter(r => !recetaTieneIngredienteRojo(r.ingredientes))
     } else {
@@ -305,16 +387,11 @@ function switchTab(tipo) {
   loadRecetas(tipo)
 }
 
-function openRecipe(recipe) {
-  selectedRecipe.value = recipe
-}
+function openRecipe(recipe) { selectedRecipe.value = recipe }
 
 function parsedSteps(instrucciones) {
   if (!instrucciones) return []
-  return instrucciones
-    .split(/\d+\.\s+/)
-    .map(s => s.trim())
-    .filter(Boolean)
+  return instrucciones.split(/\d+\.\s+/).map(s => s.trim()).filter(Boolean)
 }
 
 function onImgError(e) {
@@ -323,25 +400,25 @@ function onImgError(e) {
   if (fallback) fallback.style.display = 'flex'
 }
 
-onMounted(() => {
-  if (store.hasProfile) loadRecetas(mealTab.value)
+onMounted(async () => {
+  if (store.hasProfile) {
+    await loadFavoritos()
+    loadRecetas(mealTab.value)
+  }
 })
 </script>
 
 <style scoped>
 .recetas-page { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
 
-/* ── Header ── */
 .recetas-header h2 { font-size: 22px; font-weight: 800; }
 .recetas-header p  { font-size: 14px; color: var(--gray-500); margin-top: 4px; }
 
-/* ── Sin perfil ── */
 .no-profile-card { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding: 40px 24px; }
 .np-icon { font-size: 48px; }
 .no-profile-card h3 { font-size: 18px; font-weight: 700; }
 .no-profile-card p  { font-size: 14px; color: var(--gray-500); }
 
-/* ── Objetivo calórico ── */
 .caloric-target {
   display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
   background: linear-gradient(135deg, var(--green-light), var(--blue-light));
@@ -353,7 +430,6 @@ onMounted(() => {
 .target-info p  { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
 .target-badges { display: flex; flex-wrap: wrap; gap: 6px; }
 
-/* ── Tabs ── */
 .meal-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
 .meal-tab {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
@@ -365,13 +441,8 @@ onMounted(() => {
 .meal-tab span:first-child { font-size: 20px; }
 .meal-tab.active { background: white; border-color: var(--green); color: var(--green); box-shadow: var(--shadow-sm); }
 
-/* ── Estados ── */
 .loading-state { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 40px; color: var(--gray-500); font-size: 14px; }
-.spinner {
-  width: 32px; height: 32px; border: 3px solid var(--gray-200);
-  border-top-color: var(--green); border-radius: 50%;
-  animation: spin .7s linear infinite;
-}
+.spinner { width: 32px; height: 32px; border: 3px solid var(--gray-200); border-top-color: var(--green); border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .error-state { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 32px; text-align: center; }
@@ -383,8 +454,20 @@ onMounted(() => {
 .empty-state p { font-size: 14px; color: var(--gray-500); }
 .empty-hint { font-size: 12px; color: var(--gray-400); line-height: 1.5; max-width: 280px; }
 
+/* ── Secciones (Favoritas / Todas) ── */
+.section-block { display: flex; flex-direction: column; gap: 12px; }
+
+.section-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 800; color: var(--gray-700);
+  padding-bottom: 2px;
+  border-bottom: 2px solid var(--gray-100);
+  padding-bottom: 8px;
+}
+.section-label-icon { font-size: 16px; }
+
 /* ── Grid de recetas ── */
-.recipe-grid { display: flex; flex-direction: column; gap: 16px; }
+.recipe-grid { display: flex; flex-direction: column; gap: 14px; }
 .recipe-card { padding: 0; overflow: hidden; cursor: pointer; transition: transform .2s, box-shadow .2s; }
 .recipe-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 
@@ -392,8 +475,28 @@ onMounted(() => {
 .recipe-photo { width: 100%; height: 100%; object-fit: cover; display: block; }
 .recipe-img-fallback {
   width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, var(--green-light), var(--blue-light));
-  font-size: 52px;
+  background: linear-gradient(135deg, var(--green-light), var(--blue-light)); font-size: 52px;
+}
+
+/* ── Botón favorito ── */
+.fav-btn {
+  border: none; background: rgba(0,0,0,.30); backdrop-filter: blur(4px);
+  border-radius: 50%; width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 18px;
+  transition: transform .2s, background .2s;
+  line-height: 1;
+}
+.fav-btn:hover { transform: scale(1.15); background: rgba(0,0,0,.45); }
+.fav-btn.active { background: rgba(255,255,255,.85); }
+
+/* Posición sobre la imagen en cards */
+.fav-btn-img {
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+}
+/* Posición sobre la imagen en modal (a la izquierda del close) */
+.fav-btn-modal {
+  position: absolute; top: 16px; right: 56px; z-index: 2;
 }
 
 .recipe-body   { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
@@ -413,13 +516,11 @@ onMounted(() => {
   background: white; border-radius: 24px 24px 0 0;
   overflow: hidden; max-height: 92vh; overflow-y: auto;
 }
-
 .modal-img-wrap { position: relative; width: 100%; height: 220px; overflow: hidden; background: var(--gray-100); }
 .modal-photo    { width: 100%; height: 100%; object-fit: cover; display: block; }
 .modal-img-fallback {
   width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, var(--green-light), var(--blue-light));
-  font-size: 64px;
+  background: linear-gradient(135deg, var(--green-light), var(--blue-light)); font-size: 64px;
 }
 .modal-close {
   position: absolute; top: 16px; right: 16px;
@@ -428,74 +529,47 @@ onMounted(() => {
   display: flex; align-items: center; justify-content: center;
 }
 
-.modal-body    { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
-.modal-body h3 { font-size: 22px; font-weight: 800; }
-.modal-desc    { font-size: 14px; color: var(--gray-500); line-height: 1.6; }
+.modal-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.modal-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.modal-title-row h3 { font-size: 22px; font-weight: 800; flex: 1; }
+.modal-desc { font-size: 14px; color: var(--gray-500); line-height: 1.6; }
 
 .modal-meta {
   display: flex; justify-content: space-around;
   background: var(--gray-50); border-radius: var(--radius-md); padding: 16px;
 }
-.meta-stat          { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
-.meta-stat span     { font-size: 20px; }
-.meta-stat strong   { font-size: 16px; font-weight: 700; }
-.meta-stat small    { font-size: 11px; color: var(--gray-400); }
+.meta-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+.meta-stat span   { font-size: 20px; }
+.meta-stat strong { font-size: 16px; font-weight: 700; }
+.meta-stat small  { font-size: 11px; color: var(--gray-400); }
 
-.modal-section   { display: flex; flex-direction: column; gap: 10px; }
+.modal-section { display: flex; flex-direction: column; gap: 10px; }
 .modal-section h5 { font-size: 15px; font-weight: 700; }
 
-/* ── Lista de ingredientes con color semáforo ── */
+/* ── Ingredientes con semáforo ── */
 .ingredient-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
-
 .ingredient-item {
-  display: flex; align-items: center; gap: 10px;
-  font-size: 14px;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  border-left: 3px solid transparent;
-  transition: background .15s;
+  display: flex; align-items: center; gap: 10px; font-size: 14px;
+  padding: 8px 10px; border-radius: var(--radius-sm); border-left: 3px solid transparent;
 }
+.ingredient-item.verde    { background: var(--green-light);  border-left-color: var(--green); }
+.ingredient-item.amarillo { background: var(--yellow-light); border-left-color: var(--yellow); }
+.ingredient-item.rojo     { background: var(--red-light);    border-left-color: var(--red); }
 
-/* Verde: fondo muy sutil, texto normal */
-.ingredient-item.verde {
-  background: var(--green-light);
-  border-left-color: var(--green);
-}
-/* Amarillo */
-.ingredient-item.amarillo {
-  background: var(--yellow-light);
-  border-left-color: var(--yellow);
-}
-/* Rojo */
-.ingredient-item.rojo {
-  background: var(--red-light);
-  border-left-color: var(--red);
-}
-
-/* Dot de color */
-.ing-color-dot {
-  flex-shrink: 0;
-  width: 8px; height: 8px;
-  border-radius: 50%;
-}
+.ing-color-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; }
 .ing-color-dot.verde    { background: var(--green); }
 .ing-color-dot.amarillo { background: var(--yellow); }
 .ing-color-dot.rojo     { background: var(--red); }
 
-.ing-qty  {
-  flex-shrink: 0; font-weight: 700; min-width: 60px; font-size: 12px;
-}
-/* Color de la cantidad según semáforo */
+.ing-qty { flex-shrink: 0; font-weight: 700; min-width: 60px; font-size: 12px; }
 .ingredient-item.verde    .ing-qty { color: var(--green-dark); }
 .ingredient-item.amarillo .ing-qty { color: #7A5800; }
 .ingredient-item.rojo     .ing-qty { color: var(--red); }
-
 .ing-name { color: var(--gray-700); line-height: 1.4; flex: 1; }
 
 .steps-list { list-style: decimal; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
 .steps-list li { font-size: 14px; color: var(--gray-700); line-height: 1.5; }
 
-/* ── Transición modal ── */
 .modal-enter-active, .modal-leave-active { transition: opacity .3s ease; }
 .modal-enter-from,   .modal-leave-to     { opacity: 0; }
 </style>
