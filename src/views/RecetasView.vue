@@ -131,11 +131,17 @@
               </div>
             </div>
 
-            <!-- Ingredientes -->
+            <!-- Ingredientes con color semáforo -->
             <div v-if="selectedRecipe.ingredientes?.length" class="modal-section">
               <h5>🛒 Ingredientes</h5>
               <ul class="ingredient-list">
-                <li v-for="ing in selectedRecipe.ingredientes" :key="ing.id" class="ingredient-item">
+                <li
+                  v-for="ing in selectedRecipe.ingredientes"
+                  :key="ing.id"
+                  class="ingredient-item"
+                  :class="ingColor(ing)"
+                >
+                  <span class="ing-color-dot" :class="ingColor(ing)"></span>
                   <span class="ing-qty">{{ ing.cantidad }} {{ ing.unidad }}</span>
                   <span class="ing-name">{{ ing.notas || ing.alimento_nombre || '' }}</span>
                 </li>
@@ -171,6 +177,9 @@ const recetas = ref([])
 const loading = ref(false)
 const error = ref(null)
 
+// Mapa global de alimentos por nombre normalizado (compartido entre recetas)
+const alimentoMap = ref(new Map())
+
 const condLabels = {
   celiaquía: '🌾 Celiaquía',
   hipertensión: '💊 Hipertensión',
@@ -202,7 +211,7 @@ const mealTypes = [
 
 const currentMeal = computed(() => mealTypes.find(m => m.key === mealTab.value) || mealTypes[0])
 
-// ── Normaliza texto para comparar: minúsculas, sin acentos, sin espacios extra ──
+// ── Normaliza texto para comparar ──
 function normalizar(str) {
   if (!str) return ''
   return str
@@ -212,19 +221,17 @@ function normalizar(str) {
     .trim()
 }
 
-// ── Determina si una receta tiene algún ingrediente que clasifica como rojo ──
-function recetaTieneIngredienteRojo(ingredientes, alimentoMap, condiciones) {
-  return ingredientes.some(ing => {
-    // Nombre del ingrediente: preferir alimento_nombre, fallback a notas
-    const nombreIng = normalizar(ing.alimento_nombre || ing.notas || '')
-    if (!nombreIng) return false
+// ── Color semáforo de un ingrediente ──
+function ingColor(ing) {
+  if (!ing._alimento) return 'verde'
+  return clasificarAlimento(ing._alimento, store.profile?.condiciones || {})
+}
 
-    // Buscar en el mapa de alimentos por nombre normalizado
-    const alimento = alimentoMap.get(nombreIng)
-    if (!alimento) return false
-
-    return clasificarAlimento(alimento, condiciones) === 'rojo'
-  })
+// ── Determina si una receta tiene algún ingrediente rojo ──
+function recetaTieneIngredienteRojo(ingredientes) {
+  return ingredientes.some(ing => ing._alimento &&
+    clasificarAlimento(ing._alimento, store.profile?.condiciones || {}) === 'rojo'
+  )
 }
 
 async function loadRecetas(tipo) {
@@ -254,30 +261,33 @@ async function loadRecetas(tipo) {
 
     if (ingErr) throw ingErr
 
-    // 3) Agrupar ingredientes por receta_id
+    // 3) Cargar mapa de alimentos (usa caché del composable)
+    const alimentosDB = await getAlimentos()
+    alimentoMap.value = new Map(alimentosDB.map(a => [normalizar(a.nombre), a]))
+
+    // 4) Enriquecer ingredientes con su alimento (para semáforo)
+    const ingEnriquecidos = (ingredientesData || []).map(ing => {
+      const nombreKey = normalizar(ing.alimento_nombre || ing.notas || '')
+      const alimento = alimentoMap.value.get(nombreKey) || null
+      return { ...ing, _alimento: alimento }
+    })
+
+    // 5) Agrupar ingredientes por receta_id
     const ingPorReceta = {}
-    for (const ing of ingredientesData || []) {
+    for (const ing of ingEnriquecidos) {
       if (!ingPorReceta[ing.receta_id]) ingPorReceta[ing.receta_id] = []
       ingPorReceta[ing.receta_id].push(ing)
     }
 
-    // 4) Construir mapa de alimentos por nombre normalizado (usa caché del semáforo)
-    const alimentosDB = await getAlimentos()
-    const alimentoMap = new Map(alimentosDB.map(a => [normalizar(a.nombre), a]))
-
-    // 5) Combinar ingredientes con recetas
+    // 6) Combinar ingredientes con recetas
     const recetasCombinadas = recetasData.map(r => ({
       ...r,
       ingredientes: ingPorReceta[r.id] || [],
     }))
 
-    // 6) Filtrar: si el usuario tiene padecimientos, excluir recetas con ingredientes rojos
-    const condiciones = store.profile?.condiciones || {}
-
+    // 7) Filtrar: si el usuario tiene padecimientos, excluir recetas con ingredientes rojos
     if (hasActiveConditions.value) {
-      recetas.value = recetasCombinadas.filter(
-        r => !recetaTieneIngredienteRojo(r.ingredientes, alimentoMap, condiciones)
-      )
+      recetas.value = recetasCombinadas.filter(r => !recetaTieneIngredienteRojo(r.ingredientes))
     } else {
       recetas.value = recetasCombinadas
     }
@@ -434,10 +444,53 @@ onMounted(() => {
 .modal-section   { display: flex; flex-direction: column; gap: 10px; }
 .modal-section h5 { font-size: 15px; font-weight: 700; }
 
-.ingredient-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-.ingredient-item { display: flex; align-items: baseline; gap: 8px; font-size: 14px; }
-.ing-qty  { flex-shrink: 0; font-weight: 600; color: var(--green-dark); min-width: 60px; font-size: 12px; }
-.ing-name { color: var(--gray-700); line-height: 1.4; }
+/* ── Lista de ingredientes con color semáforo ── */
+.ingredient-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+
+.ingredient-item {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 14px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid transparent;
+  transition: background .15s;
+}
+
+/* Verde: fondo muy sutil, texto normal */
+.ingredient-item.verde {
+  background: var(--green-light);
+  border-left-color: var(--green);
+}
+/* Amarillo */
+.ingredient-item.amarillo {
+  background: var(--yellow-light);
+  border-left-color: var(--yellow);
+}
+/* Rojo */
+.ingredient-item.rojo {
+  background: var(--red-light);
+  border-left-color: var(--red);
+}
+
+/* Dot de color */
+.ing-color-dot {
+  flex-shrink: 0;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+}
+.ing-color-dot.verde    { background: var(--green); }
+.ing-color-dot.amarillo { background: var(--yellow); }
+.ing-color-dot.rojo     { background: var(--red); }
+
+.ing-qty  {
+  flex-shrink: 0; font-weight: 700; min-width: 60px; font-size: 12px;
+}
+/* Color de la cantidad según semáforo */
+.ingredient-item.verde    .ing-qty { color: var(--green-dark); }
+.ingredient-item.amarillo .ing-qty { color: #7A5800; }
+.ingredient-item.rojo     .ing-qty { color: var(--red); }
+
+.ing-name { color: var(--gray-700); line-height: 1.4; flex: 1; }
 
 .steps-list { list-style: decimal; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
 .steps-list li { font-size: 14px; color: var(--gray-700); line-height: 1.5; }

@@ -180,7 +180,8 @@
                 class="resultado-item" :class="{ selected: modal.seleccionado?.id === r.id }"
                 @click="seleccionarReceta(r)"
               >
-                <span class="r-dot verde"></span>
+                <!-- Dot con color semáforo real de la receta -->
+                <span class="r-dot" :class="colorReceta(r)"></span>
                 <span class="r-nombre">{{ r.nombre }}</span>
                 <span class="r-kcal r-kcal-receta">
                   <template v-if="r._kcalPorPorcion != null">{{ r._kcalPorPorcion }} kcal/p</template>
@@ -256,6 +257,9 @@ const entradas    = ref([])
 const guardando   = ref(false)
 const toast       = reactive({ show: false, message: '', type: 'success' })
 
+// Mapa de alimentos cargado una sola vez
+const alimentoMap = ref(new Map())
+
 function hoy() {
   const d  = new Date()
   const yy = d.getFullYear()
@@ -286,8 +290,21 @@ const tdee = computed(() => {
 })
 const condiciones = computed(() => store.profile?.condiciones || {})
 
-// ── user_id: siempre UUID del auth ─────────────────────────────────────────────
+// ── user_id ─────────────────────────────────────────────────────────────────
 const userId = computed(() => store.authUser?.id)
+
+// ── Normalizar texto para búsqueda en mapa ─────────────────────────────────
+function normalizar(str) {
+  if (!str) return ''
+  return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+}
+
+// ── Cargar mapa de alimentos (una sola vez) ────────────────────────────────
+async function ensureAlimentoMap() {
+  if (alimentoMap.value.size > 0) return
+  const data = await getAlimentos()
+  alimentoMap.value = new Map(data.map(a => [normalizar(a.nombre), a]))
+}
 
 // ── Tipos de comida ────────────────────────────────────────────────────────────
 const mealTypes = [
@@ -368,6 +385,31 @@ const metricasExtra = computed(() => {
   return ex
 })
 
+// ── Color semáforo de un alimento del modal ────────────────────────────────
+function colorAlimento(a) {
+  return clasificarAlimento(a, condiciones.value)
+}
+
+// ── Color semáforo de una receta: peor color entre sus ingredientes ─────────
+// Orden de prioridad: rojo > amarillo > verde
+function colorReceta(receta) {
+  const ings = receta._ingredientes || []
+  if (ings.some(ing => {
+    const a = alimentoMap.value.get(normalizar(ing.alimento_nombre || ing.notas || ''))
+    return a && clasificarAlimento(a, condiciones.value) === 'rojo'
+  })) return 'rojo'
+  if (ings.some(ing => {
+    const a = alimentoMap.value.get(normalizar(ing.alimento_nombre || ing.notas || ''))
+    return a && clasificarAlimento(a, condiciones.value) === 'amarillo'
+  })) return 'amarillo'
+  return 'verde'
+}
+
+// ── color_semaforo para guardar en DB (receta) ─────────────────────────────
+function calcularColorReceta(receta) {
+  return colorReceta(receta)
+}
+
 // ── Modal ──────────────────────────────────────────────────────────────────────
 const modal = reactive({
   open: false, tipo: 'desayuno', origen: 'alimento',
@@ -390,9 +432,8 @@ function switchOrigen(o) {
   modal.resultados = []; modal.resultadosRecetas = []
   modal.seleccionado = null; modal.cargandoRecetas = false
 }
-function colorAlimento(a) { return clasificarAlimento(a, condiciones.value) }
 
-// ── Búsqueda alimentos (Supabase directo) ──────────────────────────────────────
+// ── Búsqueda alimentos ─────────────────────────────────────────────────────
 let alimentoTimer = null
 function buscarAlimentos() {
   clearTimeout(alimentoTimer)
@@ -411,7 +452,7 @@ function buscarAlimentos() {
   }, 200)
 }
 
-// ── Nutrición de receta via JOIN en Supabase ───────────────────────────────────
+// ── Nutrición de receta via JOIN ───────────────────────────────────────────
 async function calcularNutricionReceta(recetaId) {
   const { data: ings, error } = await supabase
     .from('receta_ingredientes')
@@ -449,7 +490,7 @@ async function calcularNutricionReceta(recetaId) {
   return tot
 }
 
-// ── Búsqueda recetas ───────────────────────────────────────────────────────────
+// ── Búsqueda recetas — también carga ingredientes para calcular color ───────
 let recetaTimer = null
 async function buscarRecetas() {
   const q = modal.busqueda.trim()
@@ -459,6 +500,9 @@ async function buscarRecetas() {
     modal.cargandoRecetas = true
     modal.resultadosRecetas = []
     try {
+      // Aseguramos que el mapa de alimentos esté listo
+      await ensureAlimentoMap()
+
       const { data, error } = await supabase
         .from('recetas')
         .select('id, nombre, tiempo_min, porciones, tipo_comida')
@@ -469,18 +513,30 @@ async function buscarRecetas() {
 
       if (error || !data?.length) return
 
+      // Para cada receta traemos sus ingredientes (para color semáforo)
+      const ids = data.map(r => r.id)
+      const { data: ingsData } = await supabase
+        .from('receta_ingredientes')
+        .select('receta_id, cantidad, alimento_nombre, notas')
+        .in('receta_id', ids)
+
+      // Agrupar ingredientes por receta
+      const ingPorReceta = {}
+      for (const ing of ingsData || []) {
+        if (!ingPorReceta[ing.receta_id]) ingPorReceta[ing.receta_id] = []
+        ingPorReceta[ing.receta_id].push(ing)
+      }
+
       const recetasConNutricion = await Promise.all(
         data.map(async rec => {
           const nutricion = await calcularNutricionReceta(rec.id)
-          if (nutricion) {
-            return {
-              ...rec,
-              _kcalPorPorcion: Math.round(nutricion.kcal / (rec.porciones || 1)),
-              _kcalTotal:      Math.round(nutricion.kcal),
-              _nutricionTotal: nutricion,
-            }
+          return {
+            ...rec,
+            _ingredientes: ingPorReceta[rec.id] || [],
+            _kcalPorPorcion: nutricion ? Math.round(nutricion.kcal / (rec.porciones || 1)) : null,
+            _kcalTotal:      nutricion ? Math.round(nutricion.kcal) : null,
+            _nutricionTotal: nutricion,
           }
-          return { ...rec, _kcalPorPorcion: null, _kcalTotal: null, _nutricionTotal: null }
         })
       )
       modal.resultadosRecetas = recetasConNutricion
@@ -563,11 +619,16 @@ async function guardarEntrada() {
       const factP   = porUsu / porTot
       const nutri   = rec._nutricionTotal
       const kcalCal = typeof kcalPreviewReceta.value === 'number' ? kcalPreviewReceta.value : null
+
+      // Color semáforo de la receta: peor ingrediente gana
+      const colorSem = calcularColorReceta(rec)
+
       Object.assign(payload, {
         receta_id:        rec.id,
         receta_nombre:    rec.nombre,
         receta_kcal:      kcalCal,
         receta_porciones: porUsu,
+        color_semaforo:   colorSem,
         alimento_prot:   nutri ? r(nutri.prot   * factP) : null,
         alimento_carbs:  nutri ? r(nutri.carbs  * factP) : null,
         alimento_grasas: nutri ? r(nutri.grasas * factP) : null,
@@ -606,7 +667,12 @@ function showToast(message, type = 'success') {
 }
 
 watch(fechaActual, cargarEntradas)
-onMounted(() => { if (store.hasProfile) cargarEntradas() })
+onMounted(async () => {
+  if (store.hasProfile) {
+    await ensureAlimentoMap()
+    cargarEntradas()
+  }
+})
 </script>
 
 <style scoped>
