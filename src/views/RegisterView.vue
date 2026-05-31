@@ -157,9 +157,9 @@ async function handleRegister() {
   loading.value = true
   showToast('Creando tu cuenta...', 'loading')
   try {
-    const { data } = await store.register(form.name, form.email, form.password)
-    // Si Supabase requiere confirmar email, session será null
-    if (data?.session) {
+    await store.register(form.name, form.email, form.password)
+// Supabase con email confirmation: session será null hasta confirmar
+if (store.authUser?.id) {
       showToast('¡Cuenta creada! Completa tu perfil 🎉', 'success')
       await new Promise(r => setTimeout(r, 600))
       // El onAuthStateChange en el store actualizará el estado automáticamente
