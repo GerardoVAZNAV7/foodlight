@@ -17,8 +17,12 @@ const router = createRouter({
   scrollBehavior: () => ({ top: 0 })
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const store = useUserStore()
+  // Esperar a que la sesión esté lista antes de decidir
+  if (!store._initialized) {
+    await store.init()
+  }
   if (!to.meta.public && !store.isLoggedIn) return '/login'
 })
 

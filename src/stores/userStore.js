@@ -14,7 +14,7 @@ export const useUserStore = defineStore('user', () => {
     !!profile.value?.peso &&
     !!profile.value?.estatura
   )
-
+  const _initialized = ref(false)
   async function init() {
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.user) {
@@ -152,5 +152,5 @@ export const useUserStore = defineStore('user', () => {
     return edad
   }
 
-  return { authUser, isLoggedIn, profile, hasProfile, init, register, login, logout, saveProfile }
+  return { authUser, isLoggedIn, profile, hasProfile, init, register, login, logout, saveProfile, _initialized }
 })
