@@ -10,6 +10,7 @@ const routes = [
   { path: '/recetas', component: () => import('@/views/RecetasView.vue') },
   // Agrega esta nueva línea:
   { path: '/diario', component: () => import('@/views/DiarioView.vue') }, 
+  { path: '/reportes', component: () => import('@/views/ReporteView.vue') },
 ]
 const router = createRouter({
   history: createWebHistory(),

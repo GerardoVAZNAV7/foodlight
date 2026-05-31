@@ -31,6 +31,11 @@
           <span class="sidebar-label">Recetas</span>
           <kbd class="shortcut-hint">Alt+R</kbd>
         </router-link>
+         <router-link to="/reportes" class="sidebar-link" active-class="active">
+          <span class="sidebar-icon">📈</span>
+          <span class="sidebar-label">Reportes</span>
+          <kbd class="shortcut-hint">Alt+F</kbd>
+        </router-link>
       </nav>
 
       <!-- Footer con dropdown de usuario estilo Google -->
@@ -187,6 +192,15 @@ function onKeydown(e) {
         focusSearch()
       }
       showShortcut('🔍 Buscador')
+      break
+      case 'f':
+      e.preventDefault()
+      if (router.currentRoute.value.path !== '/reportes') {
+        router.push('/reportes').then(focusSearch)
+      } else {
+        focusSearch()
+      }
+      showShortcut('📈 Reportes')
       break
   }
 }
