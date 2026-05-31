@@ -31,7 +31,8 @@
           <span class="sidebar-label">Recetas</span>
           <kbd class="shortcut-hint">Alt+R</kbd>
         </router-link>
-         <router-link to="/reportes" class="sidebar-link" active-class="active">
+
+        <router-link to="/reportes" class="sidebar-link" active-class="active">
           <span class="sidebar-icon">📈</span>
           <span class="sidebar-label">Reportes</span>
           <kbd class="shortcut-hint">Alt+F</kbd>
@@ -43,7 +44,7 @@
         <button class="sidebar-user-btn" @click="toggleUserMenu" :class="{ open: userMenuOpen }">
           <div class="sidebar-avatar">{{ initials }}</div>
           <div class="sidebar-user-info">
-            <span class="sidebar-user-name">{{ store.authUser?.name?.split(' ')[0] }}</span>
+            <span class="sidebar-user-name">{{ store.profile?.nombre?.split(' ')[0] || store.authUser?.email?.split('@')[0] }}</span>
             <span class="sidebar-user-email">{{ store.authUser?.email }}</span>
           </div>
           <span class="chevron">{{ userMenuOpen ? '▲' : '▼' }}</span>
@@ -56,8 +57,8 @@
             <div class="ud-header">
               <div class="ud-avatar">{{ initials }}</div>
               <div class="ud-info">
-                <span class="ud-greeting">Hola, {{ store.authUser?.name?.split(' ')[0] }} 👋</span>
-                <span class="ud-name">{{ store.authUser?.name }}</span>
+                <span class="ud-greeting">Hola, {{ store.profile?.nombre?.split(' ')[0] || store.authUser?.email?.split('@')[0] }} 👋</span>
+                <span class="ud-name">{{ store.profile?.nombre || store.authUser?.email }}</span>
                 <span class="ud-email">{{ store.authUser?.email }}</span>
               </div>
             </div>
@@ -114,13 +115,23 @@ import BottomNav from '@/components/BottomNav.vue'
 const store = useUserStore()
 const router = useRouter()
 
+// ── Nombre desde profiles (con fallback a user_metadata y email) ─────────────
+const nombreCompleto = computed(() => {
+  // 1. nombre de la tabla profiles (fuente principal)
+  if (store.profile?.nombre?.trim()) return store.profile.nombre.trim()
+  // 2. name de user_metadata (al registrarse)
+  if (store.authUser?.name?.trim()) return store.authUser.name.trim()
+  // 3. Fallback: parte del email
+  return store.authUser?.email?.split('@')[0] || '—'
+})
 
+const primerNombre = computed(() => nombreCompleto.value.split(' ')[0])
 
-// DESPUÉS
-  const initials = computed(() => {
-  const n = store.authUser?.name || store.authUser?.email || ''
-  if (!n) return '?'
-  return n.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+const initials = computed(() => {
+  const n = nombreCompleto.value
+  if (!n || n === '—') return '?'
+  // Solo la primera inicial del primer nombre
+  return n.charAt(0).toUpperCase()
 })
 
 // ── Dropdown de usuario ──────────────────────────────────────────────────────
@@ -193,7 +204,7 @@ function onKeydown(e) {
       }
       showShortcut('🔍 Buscador')
       break
-      case 'f':
+    case 'f':
       e.preventDefault()
       if (router.currentRoute.value.path !== '/reportes') {
         router.push('/reportes').then(focusSearch)
@@ -345,7 +356,7 @@ onUnmounted(() => {
 .sidebar-avatar {
   width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
   background: linear-gradient(135deg, var(--green), var(--blue));
-  color: white; font-size: 13px; font-weight: 700;
+  color: white; font-size: 15px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
 }
 .sidebar-user-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
@@ -379,7 +390,7 @@ onUnmounted(() => {
 .ud-avatar {
   width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
   background: linear-gradient(135deg, var(--green), var(--blue));
-  color: white; font-size: 16px; font-weight: 700;
+  color: white; font-size: 18px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 2px 8px rgba(0,0,0,.15);
 }

@@ -2,11 +2,12 @@
   <div class="profile-page">
     <StatusToast :show="toast.show" :message="toast.message" :type="toast.type" />
 
-    <!-- Header -->
+    <!-- Header con bienvenida -->
     <div class="profile-header">
       <div class="avatar-circle">{{ initials }}</div>
-      <div>
-        <h2 class="profile-name">{{ store.authUser?.name }}</h2>
+      <div class="profile-header-info">
+        <p class="profile-welcome">¡Hola, {{ primerNombre }}! 👋</p>
+        <h2 class="profile-name">{{ nombreCompleto }}</h2>
         <p class="profile-sub">
           <span v-if="store.hasProfile" class="badge badge-green">✓ Perfil completo</span>
           <span v-else class="badge badge-yellow">⚠ Completa tu perfil</span>
@@ -65,7 +66,7 @@
       <form @submit.prevent="saveProfile" novalidate>
         <div class="form-grid">
 
-          <!-- Fecha de nacimiento (en lugar de edad) -->
+          <!-- Fecha de nacimiento -->
           <div class="field span-2">
             <label for="fecha_nacimiento">Fecha de nacimiento</label>
             <input
@@ -79,7 +80,6 @@
               @blur="v('fecha_nacimiento')"
             />
             <span v-if="errors.fecha_nacimiento" class="field-error">{{ errors.fecha_nacimiento }}</span>
-            <!-- Edad calculada en tiempo real -->
             <span v-if="edadCalculada !== null" class="edad-hint">
               {{ edadCalculada }} años
             </span>
@@ -178,30 +178,44 @@ const diseases = [
   { key: 'diabetes_t2',  label: 'Diabetes',     icon: '🩸' },
 ]
 
-// Límites para el input de fecha
+// ── Nombre desde profiles (con fallback) ─────────────────────────────────────
+const nombreCompleto = computed(() => {
+  if (store.profile?.nombre?.trim()) return store.profile.nombre.trim()
+  if (store.authUser?.name?.trim()) return store.authUser.name.trim()
+  return store.authUser?.email?.split('@')[0] || '—'
+})
+
+const primerNombre = computed(() => nombreCompleto.value.split(' ')[0])
+
+// Solo la primera inicial del primer nombre
+const initials = computed(() => {
+  const n = nombreCompleto.value
+  if (!n || n === '—') return '?'
+  return n.charAt(0).toUpperCase()
+})
+
+// ── Límites para el input de fecha ───────────────────────────────────────────
 const fechaMaxima = computed(() => {
-  // Máximo: hace 1 año (menores no son el target)
   const d = new Date()
   d.setFullYear(d.getFullYear() - 1)
   return d.toISOString().split('T')[0]
 })
 const fechaMinima = computed(() => {
-  // Mínimo: hace 120 años
   const d = new Date()
   d.setFullYear(d.getFullYear() - 120)
   return d.toISOString().split('T')[0]
 })
 
-// Inicializar form desde el store (usa fecha_nacimiento directo)
+// ── Inicializar form desde el store ──────────────────────────────────────────
 const defaultForm = () => ({
   fecha_nacimiento: store.profile?.fecha_nacimiento || '',
   sexo:      store.profile?.sexo      || '',
   peso:      store.profile?.peso      || '',
   estatura:  store.profile?.estatura  || '',
   actividad: store.profile?.actividad || '1.375',
- condiciones: {
-   celiaquía:    store.profile?.condiciones?.celiaquía    || false,
-   hipertension: store.profile?.condiciones?.hipertension || false,
+  condiciones: {
+    celiaquía:    store.profile?.condiciones?.celiaquía    || false,
+    hipertension: store.profile?.condiciones?.hipertension || false,
     diabetes_t2:  store.profile?.condiciones?.diabetes_t2  || false,
   }
 })
@@ -217,15 +231,15 @@ watch(() => store.profile, (p) => {
   form.peso      = p.peso      || ''
   form.estatura  = p.estatura  || ''
   form.actividad = p.actividad || '1.375'
- form.condiciones.celiaquía    = p.condiciones?.celiaquía    || false
-form.condiciones.hipertension = p.condiciones?.hipertension || false
-form.condiciones.diabetes_t2  = p.condiciones?.diabetes_t2  || false
+  form.condiciones.celiaquía    = p.condiciones?.celiaquía    || false
+  form.condiciones.hipertension = p.condiciones?.hipertension || false
+  form.condiciones.diabetes_t2  = p.condiciones?.diabetes_t2  || false
   isDirty.value = false
 }, { immediate: true })
 
 watch(form, () => { isDirty.value = true }, { deep: true })
 
-// ── Edad calculada en tiempo real desde la fecha del formulario ──────────────
+// ── Edad calculada en tiempo real ────────────────────────────────────────────
 const edadCalculada = computed(() => {
   if (!form.fecha_nacimiento) return null
   const [year, month, day] = form.fecha_nacimiento.split('-').map(Number)
@@ -238,11 +252,6 @@ const edadCalculada = computed(() => {
 })
 
 // ── Métricas del perfil ──────────────────────────────────────────────────────
-const initials = computed(() => {
-  const n = store.authUser?.name || ''
-  return n.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
-})
-
 const imc = computed(() => {
   if (!form.peso || !form.estatura) return '—'
   const h = form.estatura / 100
@@ -346,8 +355,14 @@ async function saveProfile() {
 .avatar-circle {
   width: 60px; height: 60px; flex-shrink: 0; border-radius: 50%;
   background: linear-gradient(135deg, var(--green), var(--blue));
-  color: white; font-size: 20px; font-weight: 700;
+  color: white; font-size: 26px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
+}
+.profile-header-info { display: flex; flex-direction: column; gap: 2px; }
+.profile-welcome {
+  font-size: 13px; font-weight: 600;
+  color: var(--green-dark);
+  margin-bottom: 1px;
 }
 .profile-name { font-size: 18px; font-weight: 700; color: var(--gray-900); }
 .profile-sub { margin-top: 4px; }
@@ -382,14 +397,12 @@ async function saveProfile() {
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .span-2 { grid-column: 1 / -1; }
 
-/* Hint de edad bajo el input de fecha */
 .edad-hint {
   display: inline-block; margin-top: 4px;
   font-size: 12px; font-weight: 600; color: var(--green-dark);
   background: var(--green-light); padding: 2px 10px; border-radius: 99px;
 }
 
-/* Preview TDEE en tiempo real */
 .tdee-preview {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   background: var(--green-light); border: 1px solid var(--green);

@@ -15,6 +15,7 @@ export const useUserStore = defineStore('user', () => {
     !!profile.value?.estatura
   )
   const _initialized = ref(false)
+
   async function init() {
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.user) {
@@ -60,7 +61,7 @@ export const useUserStore = defineStore('user', () => {
       .select('*')
       .eq('id', userId)
       .maybeSingle()
-
+console.log('profiles row:', p)
     const { data: conds } = await supabase
       .from('usuario_condiciones')
       .select('condicion_id, activa, condiciones_medicas(clave)')
@@ -74,6 +75,8 @@ export const useUserStore = defineStore('user', () => {
 
     if (p) {
       profile.value = {
+        // ── Nombre desde la tabla profiles ──────────────────────────────────
+        nombre: p.nombre || '',
         // Guardamos la fecha RAW para el input[type=date]
         fecha_nacimiento: p.fecha_nacimiento || '',
         // Calculamos edad solo para mostrar (no para lógica de negocio)
@@ -88,6 +91,7 @@ export const useUserStore = defineStore('user', () => {
     } else {
       // Sin perfil en DB aún, inicializar vacío
       profile.value = {
+        nombre: '',
         fecha_nacimiento: '',
         edad: null,
         sexo: '',
@@ -99,51 +103,48 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  
   async function saveProfile(data) {
-  const userId = authUser.value.id
+    const userId = authUser.value.id
 
-  const { error: pErr } = await supabase
-    .from('profiles')
-    .upsert({
-      id:               userId,
-      sexo:             data.sexo,
-      peso_kg:          data.peso,
-      talla_cm:         data.estatura,
-      actividad:        parseFloat(data.actividad) || 1.375,
-      fecha_nacimiento: data.fecha_nacimiento,
-      updated_at:       new Date().toISOString()
-    })
-  if (pErr) throw new Error(pErr.message)
+    const { error: pErr } = await supabase
+      .from('profiles')
+      .upsert({
+        id:               userId,
+        sexo:             data.sexo,
+        peso_kg:          data.peso,
+        talla_cm:         data.estatura,
+        actividad:        parseFloat(data.actividad) || 1.375,
+        fecha_nacimiento: data.fecha_nacimiento,
+        updated_at:       new Date().toISOString()
+      })
+    if (pErr) throw new Error(pErr.message)
 
-  const { data: todasConds, error: cErr } = await supabase
-    .from('condiciones_medicas')
-    .select('id, clave')
-  if (cErr) throw new Error(cErr.message)
+    const { data: todasConds, error: cErr } = await supabase
+      .from('condiciones_medicas')
+      .select('id, clave')
+    if (cErr) throw new Error(cErr.message)
 
-  const hoy = new Date().toISOString().split('T')[0]
+    const hoy = new Date().toISOString().split('T')[0]
 
-  // ── Un solo upsert con todas las condiciones en lote ──
-  const rows = (todasConds || []).map(cond => ({
-    usuario_id:   userId,
-    condicion_id: cond.id,
-    activa:       !!data.condiciones?.[cond.clave],
-    fecha_inicio: hoy,
-  }))
+    const rows = (todasConds || []).map(cond => ({
+      usuario_id:   userId,
+      condicion_id: cond.id,
+      activa:       !!data.condiciones?.[cond.clave],
+      fecha_inicio: hoy,
+    }))
 
-  const { error: ucErr } = await supabase
-    .from('usuario_condiciones')
-    .upsert(rows, { onConflict: 'usuario_id,condicion_id' })
+    const { error: ucErr } = await supabase
+      .from('usuario_condiciones')
+      .upsert(rows, { onConflict: 'usuario_id,condicion_id' })
 
-  if (ucErr) throw new Error(ucErr.message)
+    if (ucErr) throw new Error(ucErr.message)
 
-  await loadProfile(userId)
-}
+    await loadProfile(userId)
+  }
 
   function calcularEdad(fechaNacimiento) {
     if (!fechaNacimiento) return null
     const hoy = new Date()
-    // Parsear como fecha local, no UTC
     const [year, month, day] = fechaNacimiento.split('-').map(Number)
     const nac = new Date(year, month - 1, day)
     let edad = hoy.getFullYear() - nac.getFullYear()
