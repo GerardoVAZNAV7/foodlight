@@ -1,0 +1,763 @@
+/* ══════════════════════════════════════════════
+   DARK MODE PATCH — FoodLight
+   Agrega esto al final de global.css
+   o impórtalo en main.js después de global.css
+══════════════════════════════════════════════ */
+
+/* ── Transiciones suaves globales ── */
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: .25s;
+  transition-timing-function: ease;
+}
+
+/* Excepción: no animar transforms ni width/height */
+.toggle-thumb,
+.progress-fill,
+.sd-bar,
+.loading-fill,
+.top-bar {
+  transition-property: background-color, transform, width;
+}
+
+/* ══════════════════════════════════════════════
+   CARDS Y SUPERFICIES
+══════════════════════════════════════════════ */
+[data-theme="dark"] .card,
+[data-theme="dark"] .resumen-card,
+[data-theme="dark"] .caloric-card,
+[data-theme="dark"] .caloric-target,
+[data-theme="dark"] .config-card,
+[data-theme="dark"] .chart-card,
+[data-theme="dark"] .top-card,
+[data-theme="dark"] .stat-box,
+[data-theme="dark"] .form-section,
+[data-theme="dark"] .cta-card,
+[data-theme="dark"] .profile-header,
+[data-theme="dark"] .meal-section,
+[data-theme="dark"] .modal-card,
+[data-theme="dark"] .semaforo-visual,
+[data-theme="dark"] .recipe-card,
+[data-theme="dark"] .no-profile-card,
+[data-theme="dark"] .error-card,
+[data-theme="dark"] .empty-state,
+[data-theme="dark"] .empty-period,
+[data-theme="dark"] .loading-card,
+[data-theme="dark"] .empty-card {
+  background: var(--bg-surface) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* ── Superficies elevadas (hover, destacado) ── */
+[data-theme="dark"] .caloric-values,
+[data-theme="dark"] .tdee-preview,
+[data-theme="dark"] .confirm-data,
+[data-theme="dark"] .modal-meta,
+[data-theme="dark"] .extra-chip,
+[data-theme="dark"] .modal-serving,
+[data-theme="dark"] .kcal-warning,
+[data-theme="dark"] .unsaved-bar,
+[data-theme="dark"] .resumen-card .semaforo-dia,
+[data-theme="dark"] .disease-chip,
+[data-theme="dark"] .resultados-list .resultado-item,
+[data-theme="dark"] .fecha-display {
+  background: var(--bg-elevated) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* ── Stats del perfil ── */
+[data-theme="dark"] .stats-row .stat-card,
+[data-theme="dark"] .stat-card {
+  background: var(--bg-elevated) !important;
+}
+
+/* ══════════════════════════════════════════════
+   TEXTOS
+══════════════════════════════════════════════ */
+[data-theme="dark"] h1,
+[data-theme="dark"] h2,
+[data-theme="dark"] h3,
+[data-theme="dark"] h4,
+[data-theme="dark"] h5,
+[data-theme="dark"] .recipe-name,
+[data-theme="dark"] .food-name,
+[data-theme="dark"] .entrada-nombre,
+[data-theme="dark"] .modal-title,
+[data-theme="dark"] .section-title,
+[data-theme="dark"] .chart-title,
+[data-theme="dark"] .meal-title,
+[data-theme="dark"] .resumen-titulo,
+[data-theme="dark"] .stat-val,
+[data-theme="dark"] .stat-num,
+[data-theme="dark"] .kcal-val,
+[data-theme="dark"] .caloric-num,
+[data-theme="dark"] .n-val,
+[data-theme="dark"] .top-nombre,
+[data-theme="dark"] .r-nombre,
+[data-theme="dark"] .sidebar-user-name,
+[data-theme="dark"] .profile-name,
+[data-theme="dark"] .confirm-step h3,
+[data-theme="dark"] .macro-num {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] p,
+[data-theme="dark"] .food-group,
+[data-theme="dark"] .recipe-desc,
+[data-theme="dark"] .modal-desc,
+[data-theme="dark"] .modal-group,
+[data-theme="dark"] .meta-item,
+[data-theme="dark"] .stat-lbl,
+[data-theme="dark"] .stat-sub,
+[data-theme="dark"] .kcal-unit,
+[data-theme="dark"] .kcal-resto,
+[data-theme="dark"] .macro-lbl,
+[data-theme="dark"] .extra-lbl,
+[data-theme="dark"] .tdee-ref,
+[data-theme="dark"] .caloric-label,
+[data-theme="dark"] .section-hint,
+[data-theme="dark"] .section-subtitle,
+[data-theme="dark"] .disease-name,
+[data-theme="dark"] .summary-row p,
+[data-theme="dark"] .target-info p,
+[data-theme="dark"] .recetas-header p,
+[data-theme="dark"] .reporte-header p,
+[data-theme="dark"] .diario-header,
+[data-theme="dark"] .r-kcal,
+[data-theme="dark"] .entrada-meta,
+[data-theme="dark"] .meal-empty,
+[data-theme="dark"] .ing-name,
+[data-theme="dark"] .n-lbl,
+[data-theme="dark"] .steps-list li {
+  color: var(--text-secondary) !important;
+}
+
+/* ── Labels de campos ── */
+[data-theme="dark"] .field label {
+  color: var(--text-muted) !important;
+}
+
+/* ══════════════════════════════════════════════
+   INPUTS, SELECTS, TEXTAREAS
+══════════════════════════════════════════════ */
+[data-theme="dark"] .input,
+[data-theme="dark"] select.input,
+[data-theme="dark"] input.input,
+[data-theme="dark"] textarea.input {
+  background: var(--bg-elevated) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .input:focus {
+  border-color: var(--green) !important;
+  box-shadow: 0 0 0 3px rgba(0,200,150,.2) !important;
+}
+
+[data-theme="dark"] select option {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+/* ══════════════════════════════════════════════
+   NAVEGACIÓN INFERIOR (MOBILE)
+══════════════════════════════════════════════ */
+[data-theme="dark"] .bottom-nav {
+  background: var(--bg-surface) !important;
+  border-top-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .nav-label {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .nav-item.active .nav-label {
+  color: var(--green) !important;
+}
+
+/* ══════════════════════════════════════════════
+   SEMÁFORO VIEW
+══════════════════════════════════════════════ */
+[data-theme="dark"] .food-card {
+  background: var(--bg-surface) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+[data-theme="dark"] .food-card:hover {
+  background: var(--bg-elevated) !important;
+}
+
+[data-theme="dark"] .food-kcal {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .legend-pill {
+  background: var(--bg-elevated) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .pill-count {
+  background: var(--bg-surface) !important;
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .tl-body {
+  background: #0a0a1a !important;
+}
+
+[data-theme="dark"] .semaforo-summary strong {
+  color: var(--text-primary) !important;
+}
+
+/* ── Modal del semáforo ── */
+[data-theme="dark"] .modal-card {
+  background: var(--bg-surface) !important;
+}
+
+[data-theme="dark"] .modal-close {
+  background: var(--bg-elevated) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .nutrient {
+  background: var(--bg-elevated) !important;
+}
+
+[data-theme="dark"] .modal-serving {
+  background: var(--bg-elevated) !important;
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .modal-serving strong {
+  color: var(--text-primary) !important;
+}
+
+/* ── Filtros ── */
+[data-theme="dark"] .select-small,
+[data-theme="dark"] .search-input {
+  background: var(--bg-elevated) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ══════════════════════════════════════════════
+   DIARIO VIEW
+══════════════════════════════════════════════ */
+[data-theme="dark"] .meal-header {
+  border-bottom-color: var(--border-color) !important;
+  background: var(--bg-surface) !important;
+}
+
+[data-theme="dark"] .meal-title {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .meal-kcal-badge {
+  background: var(--bg-elevated) !important;
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .entrada-item {
+  border-bottom-color: var(--border-light) !important;
+}
+
+[data-theme="dark"] .entrada-item:hover {
+  background: var(--bg-elevated) !important;
+}
+
+[data-theme="dark"] .entrada-kcal {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .del-btn {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .nav-dias .nav-btn {
+  background: var(--bg-elevated) !important;
+  color: var(--text-secondary) !important;
+  border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .nav-btn.today {
+  background: var(--green-light) !important;
+  border-color: var(--green) !important;
+  color: var(--green) !important;
+}
+
+[data-theme="dark"] .fecha-badge {
+  background: var(--bg-elevated) !important;
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .progress-track {
+  background: var(--bg-elevated) !important;
+}
+
+/* ── Modal agregar diario ── */
+[data-theme="dark"] .modal-overlay {
+  background: rgba(0,0,0,.7) !important;
+}
+
+[data-theme="dark"] .modal-card {
+  background: var(--bg-surface) !important;
+}
+
+[data-theme="dark"] .modal-header h3 {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .modal-tab {
+  background: var(--bg-elevated) !important;
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .modal-tab.active {
+  background: var(--green-light) !important;
+  color: var(--green) !important;
+  border-color: var(--green) !important;
+}
+
+[data-theme="dark"] .resultado-item {
+  background: var(--bg-elevated) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .resultado-item:hover {
+  background: var(--gray-200) !important;
+}
+
+[data-theme="dark"] .resultado-item.selected {
+  background: var(--green-light) !important;
+  border-color: var(--green) !important;
+}
+
+[data-theme="dark"] .no-results {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .fav-section-label {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .porciones-input-wrap {
+  border-color: var(--green) !important;
+}
+
+[data-theme="dark"] .porciones-arrows button {
+  background: var(--bg-elevated) !important;
+  color: var(--text-secondary) !important;
+  border-color: var(--green) !important;
+}
+
+[data-theme="dark"] .receta-info-row {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .kcal-warning {
+  background: #2A2000 !important;
+  border-color: var(--yellow) !important;
+  color: #FFD54F !important;
+}
+
+[data-theme="dark"] .fav-item {
+  background: #1a1225 !important;
+}
+
+/* ══════════════════════════════════════════════
+   PERFIL VIEW
+══════════════════════════════════════════════ */
+[data-theme="dark"] .caloric-values {
+  background: var(--bg-elevated) !important;
+}
+
+[data-theme="dark"] .caloric-divider {
+  background: var(--border-color) !important;
+}
+
+[data-theme="dark"] .caloric-num {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .profile-welcome {
+  color: var(--green) !important;
+}
+
+[data-theme="dark"] .age-hint,
+[data-theme="dark"] .edad-hint {
+  background: var(--green-light) !important;
+  color: var(--green) !important;
+}
+
+[data-theme="dark"] .tdee-preview {
+  background: linear-gradient(135deg, var(--green-light), #0d1a2e) !important;
+  border-color: var(--green) !important;
+}
+
+[data-theme="dark"] .tdee-formula {
+  background: rgba(255,255,255,.05) !important;
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .disease-chip {
+  background: var(--bg-elevated) !important;
+  border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .disease-chip:hover {
+  border-color: var(--green) !important;
+  background: var(--green-light) !important;
+}
+
+[data-theme="dark"] .disease-chip.selected {
+  border-color: var(--green) !important;
+  background: var(--green-light) !important;
+}
+
+[data-theme="dark"] .disease-name {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .unsaved-bar {
+  background: #2A2000 !important;
+  border-color: var(--yellow) !important;
+  color: #FFD54F !important;
+}
+
+/* ── Stats cards del perfil ── */
+[data-theme="dark"] .stats-row .stat-card {
+  background: var(--bg-elevated) !important;
+}
+
+[data-theme="dark"] .stat-val {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .stat-lbl {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .avatar-circle {
+  box-shadow: 0 0 0 3px var(--border-color) !important;
+}
+
+/* ══════════════════════════════════════════════
+   RECETAS VIEW
+══════════════════════════════════════════════ */
+[data-theme="dark"] .meal-tab {
+  background: var(--bg-elevated) !important;
+  color: var(--text-muted) !important;
+  border-color: transparent !important;
+}
+
+[data-theme="dark"] .meal-tab.active {
+  background: var(--bg-surface) !important;
+  border-color: var(--green) !important;
+  color: var(--green) !important;
+}
+
+[data-theme="dark"] .caloric-target {
+  background: linear-gradient(135deg, var(--green-light), var(--blue-light)) !important;
+  border-color: var(--green) !important;
+}
+
+[data-theme="dark"] .target-info h4 {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .recipe-body {
+  background: var(--bg-surface) !important;
+}
+
+[data-theme="dark"] .section-label {
+  border-bottom-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .recipe-img-fallback {
+  background: linear-gradient(135deg, var(--green-light), var(--blue-light)) !important;
+}
+
+/* ── Modal receta ── */
+[data-theme="dark"] .modal-img-fallback {
+  background: linear-gradient(135deg, var(--green-light), var(--blue-light)) !important;
+}
+
+[data-theme="dark"] .ingredient-item.verde {
+  background: var(--green-light) !important;
+}
+
+[data-theme="dark"] .ingredient-item.amarillo {
+  background: var(--yellow-light) !important;
+}
+
+[data-theme="dark"] .ingredient-item.rojo {
+  background: var(--red-light) !important;
+}
+
+[data-theme="dark"] .ing-qty {
+  color: inherit !important;
+}
+
+/* ══════════════════════════════════════════════
+   REPORTES VIEW
+══════════════════════════════════════════════ */
+[data-theme="dark"] .period-tab {
+  background: var(--bg-elevated) !important;
+  color: var(--text-muted) !important;
+  border-color: transparent !important;
+}
+
+[data-theme="dark"] .period-tab.active {
+  background: var(--green-light) !important;
+  border-color: var(--green) !important;
+  color: var(--green) !important;
+}
+
+[data-theme="dark"] .date-range .input {
+  background: var(--bg-elevated) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .fecha-chip {
+  background: var(--blue-light) !important;
+  color: #6ea8fe !important;
+}
+
+[data-theme="dark"] .top-item .top-nombre {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .top-count {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .top-bar-wrap {
+  background: var(--bg-elevated) !important;
+}
+
+[data-theme="dark"] .semaforo-legend span {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .empty-period p {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .empty-period small {
+  color: var(--text-muted) !important;
+}
+
+/* ══════════════════════════════════════════════
+   LOGIN / REGISTER
+══════════════════════════════════════════════ */
+[data-theme="dark"] .auth-page {
+  background: var(--bg-page) !important;
+}
+
+[data-theme="dark"] .auth-card {
+  background: var(--bg-surface) !important;
+  box-shadow: 0 -4px 30px rgba(0,0,0,.4) !important;
+}
+
+[data-theme="dark"] .auth-hero {
+  background: linear-gradient(135deg, #006B52 0%, #1B2C7A 100%) !important;
+}
+
+[data-theme="dark"] .form-title {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .demo-hint {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .input-group .eye-btn {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .confirm-data {
+  background: var(--bg-elevated) !important;
+}
+
+[data-theme="dark"] .confirm-row span {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .confirm-row strong {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .strength-bar {
+  background: var(--bg-elevated) !important;
+}
+
+[data-theme="dark"] .progress-step span {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .progress-line {
+  background: var(--border-color) !important;
+}
+
+[data-theme="dark"] .step-dot {
+  background: var(--bg-elevated) !important;
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .progress-step.active .step-dot,
+[data-theme="dark"] .progress-step.done .step-dot {
+  background: var(--green) !important;
+  color: white !important;
+}
+
+/* ══════════════════════════════════════════════
+   SIDEBAR (refuerzo)
+══════════════════════════════════════════════ */
+[data-theme="dark"] .sidebar {
+  background: var(--bg-sidebar) !important;
+  border-right-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .sidebar-brand {
+  border-bottom-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .sidebar-link {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .sidebar-link:hover {
+  background: var(--bg-elevated) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .sidebar-link.active {
+  background: var(--green-light) !important;
+  color: var(--green) !important;
+}
+
+[data-theme="dark"] .shortcut-hint {
+  background: var(--bg-elevated) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .sidebar-theme-row {
+  background: var(--bg-elevated) !important;
+  border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .sidebar-user-btn:hover {
+  background: var(--bg-elevated) !important;
+}
+
+[data-theme="dark"] .sidebar-user-btn.open {
+  background: var(--bg-elevated) !important;
+}
+
+[data-theme="dark"] .sidebar-footer {
+  border-top-color: var(--border-color) !important;
+}
+
+/* ══════════════════════════════════════════════
+   MISC
+══════════════════════════════════════════════ */
+[data-theme="dark"] .badge-green {
+  background: var(--green-light) !important;
+  color: var(--green) !important;
+}
+
+[data-theme="dark"] .badge-yellow {
+  background: var(--yellow-light) !important;
+  color: #FFD54F !important;
+}
+
+[data-theme="dark"] .cond-chip {
+  background: var(--green-light) !important;
+  color: var(--green) !important;
+}
+
+[data-theme="dark"] .gluten-warn {
+  background: var(--red-light) !important;
+  color: #FF6B6B !important;
+}
+
+[data-theme="dark"] .back-btn {
+  color: var(--green) !important;
+}
+
+[data-theme="dark"] code {
+  background: var(--bg-elevated) !important;
+  color: var(--green) !important;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Scrollbar en dark */
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--gray-300) !important;
+}
+
+/* ══════════════════════════════════════════════
+   FIX: MACRO CIRCLES (DiarioView)
+   El ::before usa background:white hardcodeado
+   y macro-num queda invisible sobre blanco
+══════════════════════════════════════════════ */
+[data-theme="dark"] .macro-circle::before {
+  background: var(--bg-surface) !important;
+}
+
+[data-theme="dark"] .macro-num {
+  color: var(--text-primary) !important;
+  position: relative;
+  z-index: 2;
+}
+
+[data-theme="dark"] .macro-lbl {
+  color: var(--text-muted) !important;
+}
+
+/* El conic-gradient del track de fondo también necesita ajuste */
+[data-theme="dark"] .macro-circle {
+  background: conic-gradient(var(--color) var(--pct), var(--bg-elevated) 0) !important;
+}
+
+/* Dropdown del navbar en móvil */
+[data-theme="dark"] .profile-dropdown {
+  background: var(--bg-elevated) !important;
+  border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .user-email {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .dropdown-divider {
+  background: var(--border-color) !important;
+}
+
+[data-theme="dark"] .logout-btn {
+  color: #FF6B6B !important;
+}
+
+[data-theme="dark"] .logout-btn:hover {
+  background: var(--red-light) !important;
+}
+
+/* navbar móvil */
+[data-theme="dark"] .navbar {
+  background: var(--bg-sidebar) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .brand-name {
+  color: var(--green) !important;
+}
+
+[data-theme="dark"] .greeting {
+  color: var(--text-primary) !important;
+}

@@ -39,6 +39,12 @@
         </router-link>
       </nav>
 
+      <!-- Dark mode toggle en sidebar (solo desktop) -->
+      <div class="sidebar-theme-row">
+        <span class="theme-label">{{ isDarkMode ? 'Modo oscuro' : 'Modo claro' }}</span>
+        <DarkModeToggle @change="onThemeChange" />
+      </div>
+
       <!-- Footer con dropdown de usuario estilo Google -->
       <div class="sidebar-footer" ref="footerRef">
         <button class="sidebar-user-btn" @click="toggleUserMenu" :class="{ open: userMenuOpen }">
@@ -81,7 +87,7 @@
       </div>
     </aside>
 
-    <!-- Mobile Top Navbar -->
+    <!-- Mobile Top Navbar (incluye toggle de tema) -->
     <NavBar v-if="store.isLoggedIn" />
 
     <!-- Main Content -->
@@ -111,26 +117,28 @@ import { useUserStore } from '@/stores/userStore'
 import { useRouter } from 'vue-router'
 import NavBar from '@/components/NavBar.vue'
 import BottomNav from '@/components/BottomNav.vue'
+import DarkModeToggle from '@/components/DarkModeToggle.vue'
 
 const store = useUserStore()
 const router = useRouter()
 
-// ── Nombre desde profiles (con fallback a user_metadata y email) ─────────────
+// ── Detectar tema actual ─────────────────────────────────────────────────────
+const isDarkMode = ref(false)
+
+function onThemeChange() {
+  isDarkMode.value = document.documentElement.hasAttribute('data-theme')
+}
+
+// ── Nombre desde profiles ─────────────────────────────────────────────────────
 const nombreCompleto = computed(() => {
-  // 1. nombre de la tabla profiles (fuente principal)
   if (store.profile?.nombre?.trim()) return store.profile.nombre.trim()
-  // 2. name de user_metadata (al registrarse)
   if (store.authUser?.name?.trim()) return store.authUser.name.trim()
-  // 3. Fallback: parte del email
   return store.authUser?.email?.split('@')[0] || '—'
 })
-
-const primerNombre = computed(() => nombreCompleto.value.split(' ')[0])
 
 const initials = computed(() => {
   const n = nombreCompleto.value
   if (!n || n === '—') return '?'
-  // Solo la primera inicial del primer nombre
   return n.charAt(0).toUpperCase()
 })
 
@@ -148,7 +156,6 @@ function logout() {
   router.push('/login')
 }
 
-// Cerrar al hacer clic fuera
 function onClickOutside(e) {
   if (footerRef.value && !footerRef.value.contains(e.target)) {
     userMenuOpen.value = false
@@ -226,6 +233,8 @@ function focusSearch() {
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   document.addEventListener('mousedown', onClickOutside)
+  // Leer tema inicial
+  isDarkMode.value = document.documentElement.hasAttribute('data-theme')
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
@@ -241,9 +250,10 @@ onUnmounted(() => {
 /* ── Shell: mobile-first, desktop grid ── */
 .app-shell {
   min-height: 100dvh;
-  background: var(--gray-50);
+  background: var(--bg-page);
   display: flex;
   flex-direction: column;
+  transition: background .3s ease;
 }
 
 .sidebar { display: none; }
@@ -273,19 +283,22 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     grid-area: sidebar;
-    background: white;
-    border-right: 1px solid var(--gray-200);
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border-color);
     position: sticky;
     top: 0;
     height: 100dvh;
     padding: 24px 16px;
     gap: 8px;
+    transition: background .3s ease, border-color .3s ease;
   }
 
   .main-content {
     grid-area: main;
     padding-bottom: 0 !important;
     overflow-y: auto;
+    background: var(--bg-page);
+    transition: background .3s ease;
   }
 
   .app-shell.logged-in nav.bottom-nav { display: none; }
@@ -300,7 +313,7 @@ onUnmounted(() => {
 .sidebar-brand {
   display: flex; align-items: center; gap: 10px;
   padding: 8px 12px 20px;
-  border-bottom: 1px solid var(--gray-100);
+  border-bottom: 1px solid var(--border-light);
   margin-bottom: 8px;
 }
 .sidebar-brand .brand-icon { font-size: 24px; }
@@ -316,19 +329,19 @@ onUnmounted(() => {
   display: flex; align-items: center; gap: 12px;
   padding: 12px 16px;
   border-radius: var(--radius-md);
-  text-decoration: none; color: var(--gray-600);
+  text-decoration: none; color: var(--text-secondary);
   font-size: 14px; font-weight: 600;
   transition: all .2s;
 }
-.sidebar-link:hover { background: var(--gray-100); color: var(--gray-900); }
+.sidebar-link:hover { background: var(--gray-100); color: var(--text-primary); }
 .sidebar-link.active { background: var(--green-light); color: var(--green-dark); }
 .sidebar-icon { font-size: 18px; }
 .sidebar-label { font-size: 14px; flex: 1; }
 
 .shortcut-hint {
   font-size: 10px; font-weight: 700;
-  background: var(--gray-100); color: var(--gray-400);
-  border: 1px solid var(--gray-200);
+  background: var(--gray-100); color: var(--text-muted);
+  border: 1px solid var(--border-color);
   border-radius: 4px; padding: 2px 5px;
   font-family: monospace; letter-spacing: .02em;
   opacity: 0; transition: opacity .15s; pointer-events: none;
@@ -336,9 +349,27 @@ onUnmounted(() => {
 .sidebar-link:hover .shortcut-hint,
 .sidebar-link.active .shortcut-hint { opacity: 1; }
 
+/* ── Theme toggle row en sidebar ── */
+.sidebar-theme-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  background: var(--bg-elevated);
+  margin: 4px 0;
+  transition: background .3s, border-color .3s;
+}
+.theme-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
 /* ── Sidebar footer con dropdown ── */
 .sidebar-footer {
-  border-top: 1px solid var(--gray-100);
+  border-top: 1px solid var(--border-light);
   padding-top: 12px;
   position: relative;
 }
@@ -361,25 +392,26 @@ onUnmounted(() => {
 }
 .sidebar-user-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .sidebar-user-name {
-  font-size: 13px; font-weight: 700; color: var(--gray-800);
+  font-size: 13px; font-weight: 700; color: var(--text-primary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .sidebar-user-email {
-  font-size: 11px; color: var(--gray-400);
+  font-size: 11px; color: var(--text-muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.chevron { font-size: 9px; color: var(--gray-400); flex-shrink: 0; }
+.chevron { font-size: 9px; color: var(--text-muted); flex-shrink: 0; }
 
 /* ── User dropdown ── */
 .user-dropdown {
   position: absolute;
   bottom: calc(100% + 8px);
   left: 0; right: 0;
-  background: white;
+  background: var(--bg-elevated);
   border-radius: var(--radius-lg);
-  box-shadow: 0 8px 32px rgba(0,0,0,.14), 0 0 0 1px rgba(0,0,0,.06);
+  box-shadow: 0 8px 32px rgba(0,0,0,.14), 0 0 0 1px var(--border-color);
   overflow: hidden;
   z-index: 200;
+  transition: background .3s;
 }
 
 .ud-header {
@@ -399,22 +431,22 @@ onUnmounted(() => {
   font-size: 13px; font-weight: 800; color: var(--green-dark);
 }
 .ud-name {
-  font-size: 13px; font-weight: 600; color: var(--gray-800);
+  font-size: 13px; font-weight: 600; color: var(--text-primary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .ud-email {
-  font-size: 11px; color: var(--gray-500);
+  font-size: 11px; color: var(--text-muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-.ud-divider { height: 1px; background: var(--gray-100); }
+.ud-divider { height: 1px; background: var(--border-light); }
 
 .ud-actions { padding: 6px; display: flex; flex-direction: column; gap: 2px; }
 
 .ud-item {
   display: flex; align-items: center; gap: 10px;
   padding: 10px 12px; border-radius: var(--radius-sm);
-  font-size: 13px; font-weight: 600; color: var(--gray-700);
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
   text-decoration: none; background: none; border: none;
   cursor: pointer; transition: background .15s; width: 100%; text-align: left;
 }

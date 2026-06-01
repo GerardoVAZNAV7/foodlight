@@ -6,6 +6,9 @@
     </div>
 
     <div class="user-section">
+      <!-- Toggle de tema (solo en mobile - oculto en desktop por CSS) -->
+      <DarkModeToggle class="mobile-theme-toggle" />
+
       <span class="greeting">Hola {{ username }}!</span>
       
       <div class="avatar-wrapper">
@@ -47,18 +50,17 @@
 import { ref, computed } from 'vue'
 import { useUserStore } from '@/stores/userStore'
 import { useRouter } from 'vue-router'
+import DarkModeToggle from '@/components/DarkModeToggle.vue'
 
 const store = useUserStore()
 const router = useRouter()
 
 const isMenuOpen = ref(false)
 
-// Aquí está la clave: leemos directamente de 'authUser', que es como lo definiste en userStore.js
 const fullEmail = computed(() => {
   return store.authUser?.email || store.profile?.email || ''
 })
 
-// Extrae el texto antes del '@' para que diga "Hola Y AQUI EL NOMBRE DEL USUARIO!"
 const username = computed(() => {
   const email = fullEmail.value
   if (email && email.includes('@')) {
@@ -67,7 +69,6 @@ const username = computed(() => {
   return 'usuario' 
 })
 
-// Inicial para el círculo del avatar (tomará la 'G')
 const userInitial = computed(() => {
   return fullEmail.value ? fullEmail.value.charAt(0).toUpperCase() : 'U'
 })
@@ -91,9 +92,11 @@ const handleLogout = async () => {
   justify-content: space-between;
   align-items: center;
   padding: 1rem 1.5rem;
-  background-color: white;
+  background-color: var(--bg-surface);
   position: relative;
   z-index: 50;
+  border-bottom: 1px solid var(--border-light);
+  transition: background .3s ease, border-color .3s ease;
 }
 
 .brand {
@@ -112,13 +115,25 @@ const handleLogout = async () => {
 .user-section {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .greeting {
   font-size: 0.95rem;
   font-weight: 500;
-  color: #333;
+  color: var(--text-primary);
+}
+
+/* ── Toggle sólo visible en mobile ── */
+.mobile-theme-toggle {
+  display: flex;
+}
+
+/* En desktop, el toggle va en la sidebar; aquí lo ocultamos */
+@media (min-width: 768px) {
+  .mobile-theme-toggle {
+    display: none;
+  }
 }
 
 .avatar-wrapper {
@@ -159,12 +174,13 @@ const handleLogout = async () => {
   top: 50px;
   right: 0;
   width: 280px;
-  background: white;
+  background: var(--bg-elevated);
   border-radius: 16px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
   padding: 1rem 0;
   z-index: 100;
-  border: 1px solid #eee;
+  border: 1px solid var(--border-color);
+  transition: background .3s, border-color .3s;
 }
 
 .dropdown-header {
@@ -175,13 +191,13 @@ const handleLogout = async () => {
 .user-email {
   margin: 0;
   font-size: 0.9rem;
-  color: #666;
+  color: var(--text-secondary);
   word-break: break-all;
 }
 
 .dropdown-divider {
   height: 1px;
-  background-color: #eee;
+  background-color: var(--border-light);
   margin: 0.5rem 0;
 }
 
@@ -207,7 +223,7 @@ const handleLogout = async () => {
 }
 
 .logout-btn:hover {
-  background-color: #ffebee;
+  background-color: var(--red-light);
 }
 
 .dropdown-enter-active, .dropdown-leave-active {
