@@ -2,7 +2,6 @@
   <div class="reporte-page">
     <StatusToast :show="toast.show" :message="toast.message" :type="toast.type" />
 
-    <!-- Header -->
     <div class="reporte-header">
       <div>
         <h2>📊 Reportes</h2>
@@ -10,7 +9,6 @@
       </div>
     </div>
 
-    <!-- Sin perfil -->
     <div v-if="!store.hasProfile" class="empty-card card">
       <div class="empty-icon">📊</div>
       <h3>Completa tu perfil primero</h3>
@@ -19,10 +17,8 @@
     </div>
 
     <template v-else>
-      <!-- Configuración del reporte -->
       <div class="config-card card">
         <h3 class="section-title"><span>⚙️</span> Configurar reporte</h3>
-
         <div class="config-grid">
           <div class="field span-2">
             <label>Período</label>
@@ -34,7 +30,6 @@
               >{{ p.label }}</button>
             </div>
           </div>
-
           <div class="field span-2" v-if="config.period === 'custom'">
             <label>Rango personalizado</label>
             <div class="date-range">
@@ -43,12 +38,10 @@
               <input v-model="config.fechaFin" type="date" class="input" :max="hoy()" />
             </div>
           </div>
-
           <div v-else class="fecha-display span-2">
             <span class="fecha-chip">📅 {{ fechaInicioFormateada }} → {{ fechaFinFormateada }}</span>
           </div>
         </div>
-
         <div class="export-btns">
           <button class="btn btn-export pdf" :disabled="!!generando" @click="exportarPDF">
             <span v-if="generando === 'pdf'" class="spinner-sm-w"></span>
@@ -98,7 +91,7 @@
         <div class="chart-card card">
           <h4 class="chart-title">🔥 Calorías por día</h4>
           <div class="chart-wrap">
-            <canvas ref="chartKcal" height="200"></canvas>
+            <canvas :key="'kcal-' + chartKey" ref="chartKcal" height="200"></canvas>
           </div>
         </div>
 
@@ -106,13 +99,13 @@
           <div class="chart-card card">
             <h4 class="chart-title">🥗 Macros promedio (g/día)</h4>
             <div class="chart-wrap">
-              <canvas ref="chartMacros" height="220"></canvas>
+              <canvas :key="'macros-' + chartKey" ref="chartMacros" height="220"></canvas>
             </div>
           </div>
           <div class="chart-card card">
             <h4 class="chart-title">🚦 Distribución semáforo</h4>
             <div class="chart-wrap semaforo-wrap">
-              <canvas ref="chartSemaforo" height="220"></canvas>
+              <canvas :key="'sem-' + chartKey" ref="chartSemaforo" height="220"></canvas>
             </div>
             <div class="semaforo-legend">
               <span class="sl-dot verde"></span><span>Verde ({{ stats.semaforo.verde }})</span>
@@ -139,7 +132,7 @@
         <div class="chart-card card">
           <h4 class="chart-title">🍴 Calorías por tipo de comida</h4>
           <div class="chart-wrap">
-            <canvas ref="chartMeals" height="180"></canvas>
+            <canvas :key="'meals-' + chartKey" ref="chartMeals" height="180"></canvas>
           </div>
         </div>
       </template>
@@ -161,28 +154,21 @@ import StatusToast from '@/components/StatusToast.vue'
 
 const store = useUserStore()
 
-// ── Toast ────────────────────────────────────────────────────────────────────
 const toast = reactive({ show: false, message: '', type: 'success' })
 function showToast(message, type = 'success') {
   toast.show = false
   setTimeout(() => { toast.message = message; toast.type = type; toast.show = true }, 50)
 }
 
-// ── Nombre del usuario: busca en múltiples fuentes ───────────────────────────
-// Algunos usuarios no tienen name en user_metadata; en ese caso usa el email
 const nombreUsuario = computed(() => {
   const u = store.authUser
-  // 1. name guardado en el store (viene de user_metadata al registrarse)
   if (u?.name && u.name.trim()) return u.name.trim()
-  // 2. perfil en la tabla profiles (campo nombre)
   const p = store.profile?._raw
   if (p?.nombre && p.nombre.trim()) return p.nombre.trim()
-  // 3. Fallback: parte del email antes del @
   if (u?.email) return u.email.split('@')[0]
   return '—'
 })
 
-// ── Configuración ────────────────────────────────────────────────────────────
 const periods = [
   { key: 'day',    label: 'Hoy' },
   { key: 'week',   label: 'Semana' },
@@ -241,7 +227,6 @@ const fechaFinFormateada = computed(() =>
     : ''
 )
 
-// ── TDEE ─────────────────────────────────────────────────────────────────────
 const tdee = computed(() => {
   const p = store.profile
   if (!p?.peso || !p?.estatura || !p?.edad || !p?.sexo) return 2000
@@ -251,18 +236,50 @@ const tdee = computed(() => {
   return Math.round(tmb * parseFloat(p.actividad || 1.375))
 })
 
-// ── Datos ─────────────────────────────────────────────────────────────────────
-const stats    = ref(null)
-const cargando = ref(false)
+const stats     = ref(null)
+const cargando  = ref(false)
 const generando = ref(null)
+const chartKey  = ref(0)
+
 let chartInstances = {}
+
+function destroyCharts() {
+  for (const inst of Object.values(chartInstances)) {
+    try { inst.destroy() } catch (_) {}
+  }
+  chartInstances = {}
+}
+
+const chartKcal     = ref(null)
+const chartMacros   = ref(null)
+const chartSemaforo = ref(null)
+const chartMeals    = ref(null)
+
+// Espera activa hasta que el primer canvas tenga dimensiones reales
+function waitForCanvases(maxMs = 800) {
+  return new Promise(resolve => {
+    const interval = 30
+    let elapsed = 0
+    const check = () => {
+      if (chartKcal.value?.offsetWidth > 0) { resolve(); return }
+      elapsed += interval
+      if (elapsed >= maxMs) { resolve(); return }
+      setTimeout(check, interval)
+    }
+    check()
+  })
+}
 
 async function cargarDatos() {
   const { inicio, fin } = fechaActual.value
   if (!inicio || !fin || !store.authUser?.id) return
+
+  // 1. Destruir instancias Chart.js existentes
+  destroyCharts()
+
   cargando.value = true
   stats.value = null
-  destroyCharts()
+
   try {
     const { data, error } = await supabase
       .from('diario_alimenticio')
@@ -272,13 +289,36 @@ async function cargarDatos() {
       .lte('fecha', fin)
       .order('fecha')
     if (error) throw error
-    if (!data?.length) { stats.value = null; return }
+
+    if (!data?.length) {
+      stats.value = null
+      cargando.value = false
+      return
+    }
+
     stats.value = calcularStats(data, inicio, fin)
+
+    // 2. Incrementar key → Vue desmonta canvas viejos y prepara nuevos
+    chartKey.value++
+
+    // 3. BAJAR cargando ANTES de esperar el DOM
+    //    Los canvas están dentro del v-else-if="stats" que solo
+    //    se renderiza cuando cargando es false — si no bajamos aquí,
+    //    waitForCanvases espera canvas que todavía no existen.
+    cargando.value = false
+
+    // 4. Esperar a que Vue aplique el nuevo DOM
     await nextTick()
-    renderCharts()
+    await nextTick()
+
+    // 5. Esperar a que el navegador asigne dimensiones reales al canvas
+    await waitForCanvases()
+
+    // 6. Renderizar
+    await renderCharts()
+
   } catch (e) {
     showToast('Error al cargar datos: ' + e.message, 'error')
-  } finally {
     cargando.value = false
   }
 }
@@ -367,18 +407,8 @@ function semColorBar(item) {
   return { verde: '#00C896', amarillo: '#FFB800', rojo: '#FF4757' }[item.color] || '#94A3B8'
 }
 
-// ── Gráficas ──────────────────────────────────────────────────────────────────
-const chartKcal = ref(null); const chartMacros = ref(null)
-const chartSemaforo = ref(null); const chartMeals = ref(null)
-
-function destroyCharts() {
-  for (const inst of Object.values(chartInstances)) { try { inst.destroy() } catch (_) {} }
-  chartInstances = {}
-}
-
 function loadScript(src) {
   return new Promise((res, rej) => {
-    // Evitar duplicados
     if (document.querySelector(`script[src="${src}"]`)) { res(); return }
     const s = document.createElement('script')
     s.src = src; s.onload = res; s.onerror = rej
@@ -391,19 +421,17 @@ async function ensureChartJS() {
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js')
 }
 
-// CORRECCIÓN PRINCIPAL: cargar jsPDF primero, esperar, luego autoTable
 async function ensureJsPDF() {
   if (window.jspdf?.jsPDF) return
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
-  // Esperar a que jsPDF esté disponible en window antes de cargar el plugin
   await new Promise(res => setTimeout(res, 200))
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js')
-  // Dar tiempo al plugin para que se auto-registre en el prototipo de jsPDF
   await new Promise(res => setTimeout(res, 150))
 }
 
 async function renderCharts() {
   await ensureChartJS()
+  if (!stats.value) return
   const { kcalPorDia, fechaLabels, macros, semaforo, porTipo } = stats.value
   const C = window.Chart
 
@@ -421,7 +449,9 @@ async function renderCharts() {
           label: 'kcal',
           data: kcalPorDia,
           backgroundColor: kcalPorDia.map(k =>
-            k > tdee.value * 1.1 ? 'rgba(255,71,87,.7)' : k > tdee.value * 0.9 ? 'rgba(0,200,150,.7)' : 'rgba(148,163,184,.5)'
+            k > tdee.value * 1.1 ? 'rgba(255,71,87,.7)' :
+            k > tdee.value * 0.9 ? 'rgba(0,200,150,.7)' :
+            'rgba(148,163,184,.5)'
           ),
           borderRadius: 6,
         }, {
@@ -471,41 +501,116 @@ async function renderCharts() {
   }
 }
 
-// ── PDF ───────────────────────────────────────────────────────────────────────
+async function renderChartsOffscreen() {
+  await ensureChartJS()
+  if (!stats.value) return {}
+  const { kcalPorDia, fechaLabels, macros, semaforo, porTipo } = stats.value
+  const C = window.Chart
+
+  const labelsFecha = fechaLabels.map(f =>
+    new Date(f + 'T12:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
+  )
+
+  function makeCanvas(w = 800, h = 400) {
+    const c = document.createElement('canvas')
+    c.width = w; c.height = h
+    return c
+  }
+
+  const images = {}
+
+  const cKcal = makeCanvas(800, 320)
+  const instKcal = new C(cKcal, {
+    type: 'bar',
+    data: {
+      labels: labelsFecha,
+      datasets: [{
+        label: 'kcal', data: kcalPorDia,
+        backgroundColor: kcalPorDia.map(k =>
+          k > tdee.value * 1.1 ? 'rgba(255,71,87,.85)' :
+          k > tdee.value * 0.9 ? 'rgba(0,200,150,.85)' :
+          'rgba(148,163,184,.6)'
+        ),
+        borderRadius: 6,
+      }, {
+        label: 'Meta TDEE', data: kcalPorDia.map(() => tdee.value),
+        type: 'line', borderColor: 'rgba(67,97,238,.7)',
+        borderDash: [6, 4], borderWidth: 2, pointRadius: 0, fill: false,
+      }]
+    },
+    options: { responsive: false, animation: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } }
+  })
+  images.kcal = cKcal.toDataURL('image/png')
+  instKcal.destroy()
+
+  const cMacros = makeCanvas(600, 320)
+  const instMacros = new C(cMacros, {
+    type: 'bar',
+    data: {
+      labels: ['Proteína', 'Carbohidratos', 'Grasas'],
+      datasets: [{ label: 'g/día promedio', data: [macros.prot, macros.carbs, macros.grasas], backgroundColor: ['rgba(67,97,238,.85)', 'rgba(255,184,0,.85)', 'rgba(255,71,87,.85)'], borderRadius: 8 }]
+    },
+    options: { responsive: false, animation: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  })
+  images.macros = cMacros.toDataURL('image/png')
+  instMacros.destroy()
+
+  const totalSem = semaforo.verde + semaforo.amarillo + semaforo.rojo
+  if (totalSem > 0) {
+    const cSem = makeCanvas(400, 400)
+    const instSem = new C(cSem, {
+      type: 'doughnut',
+      data: { labels: ['Verde', 'Amarillo', 'Rojo'], datasets: [{ data: [semaforo.verde, semaforo.amarillo, semaforo.rojo], backgroundColor: ['#00C896', '#FFB800', '#FF4757'], borderWidth: 0 }] },
+      options: { responsive: false, animation: false, plugins: { legend: { display: false } }, cutout: '60%' }
+    })
+    images.semaforo = cSem.toDataURL('image/png')
+    instSem.destroy()
+  }
+
+  const cMeals = makeCanvas(600, 280)
+  const instMeals = new C(cMeals, {
+    type: 'bar',
+    data: {
+      labels: porTipo.map(t => ({ desayuno: 'Desayuno', comida: 'Comida', cena: 'Cena', snack: 'Snack' }[t.tipo])),
+      datasets: [{ label: 'kcal totales', data: porTipo.map(t => t.kcal), backgroundColor: ['rgba(0,200,150,.85)', 'rgba(255,184,0,.85)', 'rgba(67,97,238,.85)', 'rgba(255,71,87,.85)'], borderRadius: 8 }]
+    },
+    options: { responsive: false, animation: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  })
+  images.meals = cMeals.toDataURL('image/png')
+  instMeals.destroy()
+
+  return images
+}
+
 async function exportarPDF() {
   if (!stats.value) { showToast('Sin datos para exportar', 'warning'); return }
   generando.value = 'pdf'
   showToast('Generando PDF...', 'loading')
   try {
-    await ensureChartJS()
-    // CORRECCIÓN: carga secuencial con esperas para que autoTable se registre
     await ensureJsPDF()
 
     const { jsPDF } = window.jspdf
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
-    // Verificar que autoTable esté disponible
     if (typeof doc.autoTable !== 'function') {
       throw new Error('El plugin autoTable no se cargó correctamente. Intenta de nuevo.')
     }
 
+    const imgs = await renderChartsOffscreen()
+
     const W = doc.internal.pageSize.getWidth()
     let y = 0
 
-    // ── Encabezado ──
     doc.setFillColor(0, 200, 150)
     doc.rect(0, 0, W, 38, 'F')
     doc.setTextColor(255, 255, 255)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(20)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(20)
     doc.text('FoodLight — Reporte Nutricional', 14, 15)
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10); doc.setFont('helvetica', 'normal')
     doc.text(`Periodo: ${fechaInicioFormateada.value} - ${fechaFinFormateada.value}`, 14, 24)
     doc.text(`Generado: ${new Date().toLocaleDateString('es-MX', { dateStyle: 'long' })}`, 14, 31)
     y = 44
 
-    // ── Datos del usuario ──
     const p    = store.profile || {}
     const user = store.authUser || {}
     const condActivas = Object.entries(p.condiciones || {})
@@ -513,22 +618,17 @@ async function exportarPDF() {
       .map(([k]) => ({ celiaquía: 'Celiaquía', hipertension: 'Hipertension', diabetes_t2: 'Diabetes T2' }[k] || k))
       .join(', ') || 'Ninguna'
 
-    doc.setTextColor(30, 41, 59)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(13)
+    doc.setTextColor(30, 41, 59); doc.setFont('helvetica', 'bold'); doc.setFontSize(13)
     doc.text('Datos del usuario', 14, y); y += 6
-
     doc.autoTable({
       startY: y,
-      // ── Datos del usuario ── (cambio: "anios" → "años")
-body: [
-  ['Nombre',     nombreUsuario.value,                         'Correo',        user.email || '—'],
-  ['Edad',       p.edad ? `${p.edad} años` : '—',            'Sexo',          p.sexo === 'M' ? 'Masculino' : p.sexo === 'F' ? 'Femenino' : '—'],
-  ['Peso',       p.peso ? `${p.peso} kg` : '—',              'Estatura',      p.estatura ? `${p.estatura} cm` : '—'],
-  ['TDEE',       `${tdee.value} kcal/día`,                   'Padecimientos', condActivas],
-],
-      theme: 'plain',
-      styles: { fontSize: 10, cellPadding: 2 },
+      body: [
+        ['Nombre',  nombreUsuario.value,               'Correo',        user.email || '—'],
+        ['Edad',    p.edad ? `${p.edad} años` : '—',  'Sexo',          p.sexo === 'M' ? 'Masculino' : p.sexo === 'F' ? 'Femenino' : '—'],
+        ['Peso',    p.peso ? `${p.peso} kg` : '—',    'Estatura',      p.estatura ? `${p.estatura} cm` : '—'],
+        ['TDEE',    `${tdee.value} kcal/día`,          'Padecimientos', condActivas],
+      ],
+      theme: 'plain', styles: { fontSize: 10, cellPadding: 2 },
       columnStyles: {
         0: { fontStyle: 'bold', textColor: [71, 85, 105], cellWidth: 28 },
         1: { cellWidth: 52 },
@@ -539,94 +639,81 @@ body: [
     })
     y = doc.lastAutoTable.finalY + 10
 
-    // ── Estadísticas ──
     const s = stats.value
     doc.setFont('helvetica', 'bold'); doc.setFontSize(13)
     doc.text('Resumen estadistico', 14, y); y += 6
-
     doc.autoTable({
       startY: y,
       head: [['Metrica', 'Valor', 'Referencia']],
       body: [
-        ['Dias con registro',    `${s.diasConRegistro} de ${s.totalDias}`, `${Math.round(s.diasConRegistro / s.totalDias * 100)}% del periodo`],
-        ['Promedio kcal/dia',    `${s.promedioKcal} kcal`,                 `Meta: ${tdee.value} kcal`],
-        ['Total de registros',   `${s.totalEntradas}`,                     ''],
-        ['Dias en meta calorica',`${s.cumplimientoMeta}%`,                 '+/-10% del TDEE'],
-        ['Alimentos verdes',     `${s.semaforo.verde}`,                    `${Math.round(s.semaforo.verde / Math.max(1, s.semaforo.verde + s.semaforo.amarillo + s.semaforo.rojo) * 100)}% del total`],
-        ['Alimentos amarillos',  `${s.semaforo.amarillo}`,                 ''],
-        ['Alimentos rojos',      `${s.semaforo.rojo}`,                     ''],
+        ['Dias con registro',     `${s.diasConRegistro} de ${s.totalDias}`, `${Math.round(s.diasConRegistro / s.totalDias * 100)}% del periodo`],
+        ['Promedio kcal/dia',     `${s.promedioKcal} kcal`,                  `Meta: ${tdee.value} kcal`],
+        ['Total de registros',    `${s.totalEntradas}`,                       ''],
+        ['Dias en meta calorica', `${s.cumplimientoMeta}%`,                   '+/-10% del TDEE'],
+        ['Alimentos verdes',      `${s.semaforo.verde}`,                      `${Math.round(s.semaforo.verde / Math.max(1, s.semaforo.verde + s.semaforo.amarillo + s.semaforo.rojo) * 100)}% del total`],
+        ['Alimentos amarillos',   `${s.semaforo.amarillo}`,                   ''],
+        ['Alimentos rojos',       `${s.semaforo.rojo}`,                       ''],
       ],
       headStyles: { fillColor: [0, 200, 150], textColor: 255 },
-      styles: { fontSize: 10 },
-      margin: { left: 14, right: 14 },
+      styles: { fontSize: 10 }, margin: { left: 14, right: 14 },
     })
     y = doc.lastAutoTable.finalY + 10
 
-    // ── Macros ──
     doc.setFont('helvetica', 'bold'); doc.setFontSize(13)
     doc.text('Macronutrientes promedio por dia', 14, y); y += 6
     doc.autoTable({
       startY: y,
       head: [['Macronutriente', 'Promedio/dia']],
       body: [
-        ['Proteina',       `${s.macros.prot} g`],
-        ['Carbohidratos',  `${s.macros.carbs} g`],
-        ['Grasas',         `${s.macros.grasas} g`],
+        ['Proteina',      `${s.macros.prot} g`],
+        ['Carbohidratos', `${s.macros.carbs} g`],
+        ['Grasas',        `${s.macros.grasas} g`],
       ],
       headStyles: { fillColor: [67, 97, 238], textColor: 255 },
-      styles: { fontSize: 10 },
-      margin: { left: 14, right: 14 },
+      styles: { fontSize: 10 }, margin: { left: 14, right: 14 },
     })
-    y = doc.lastAutoTable.finalY + 10
 
-    // ── Gráfica kcal ── página propia
-if (chartKcal.value) {
-  doc.addPage()
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(30, 41, 59)
-  doc.text('Calorías por día', 14, 20)
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(100, 116, 139)
-  doc.text(`Meta TDEE: ${tdee.value} kcal/día  ·  Verde = en meta  ·  Gris = sin registro  ·  Rojo = exceso`, 14, 28)
-  doc.addImage(chartKcal.value.toDataURL('image/png'), 'PNG', 14, 36, W - 28, 120)
-}
+    if (imgs.kcal) {
+      doc.addPage()
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(30, 41, 59)
+      doc.text('Calorías por día', 14, 20)
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(100, 116, 139)
+      doc.text(`Meta TDEE: ${tdee.value} kcal/día  ·  Verde = en meta  ·  Gris = sin registro  ·  Rojo = exceso`, 14, 28)
+      doc.addImage(imgs.kcal, 'PNG', 14, 36, W - 28, 120)
+    }
 
-// ── Gráfica macros ── página propia
-if (chartMacros.value) {
-  doc.addPage()
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(30, 41, 59)
-  doc.text('Macronutrientes promedio por día', 14, 20)
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(100, 116, 139)
-  doc.text('Gramos promedio consumidos por día durante el período', 14, 28)
-  doc.addImage(chartMacros.value.toDataURL('image/png'), 'PNG', 14, 36, W - 28, 120)
-}
+    if (imgs.macros) {
+      doc.addPage()
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(30, 41, 59)
+      doc.text('Macronutrientes promedio por día', 14, 20)
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(100, 116, 139)
+      doc.text('Gramos promedio consumidos por día durante el período', 14, 28)
+      doc.addImage(imgs.macros, 'PNG', 14, 36, W - 28, 120)
+    }
 
-// ── Gráfica semáforo ── página propia
-if (chartSemaforo.value) {
-  const { semaforo } = stats.value
-  const total = semaforo.verde + semaforo.amarillo + semaforo.rojo
-  doc.addPage()
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(30, 41, 59)
-  doc.text('Distribución semáforo', 14, 20)
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(100, 116, 139)
-  doc.text(`Total de alimentos registrados: ${total}  ·  Verde: ${semaforo.verde}  ·  Amarillo: ${semaforo.amarillo}  ·  Rojo: ${semaforo.rojo}`, 14, 28)
-  // Centrar la dona
-  const cx = (W - 28) / 2
-  doc.addImage(chartSemaforo.value.toDataURL('image/png'), 'PNG', 14 + cx / 2, 36, cx, cx)
-}
+    if (imgs.semaforo) {
+      doc.addPage()
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(30, 41, 59)
+      doc.text('Distribución semáforo', 14, 20)
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(100, 116, 139)
+      doc.text(`Total: ${s.semaforo.verde + s.semaforo.amarillo + s.semaforo.rojo}  ·  Verde: ${s.semaforo.verde}  ·  Amarillo: ${s.semaforo.amarillo}  ·  Rojo: ${s.semaforo.rojo}`, 14, 28)
+      const cx = (W - 28) / 2
+      doc.addImage(imgs.semaforo, 'PNG', 14 + cx / 2, 36, cx, cx)
+    }
 
-// ── Gráfica por tipo de comida ── página propia
-if (chartMeals.value) {
-  doc.addPage()
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(30, 41, 59)
-  doc.text('Calorías por tipo de comida', 14, 20)
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(100, 116, 139)
-  doc.text('Total de kilocalorías acumuladas por categoría durante el período', 14, 28)
-  doc.addImage(chartMeals.value.toDataURL('image/png'), 'PNG', 14, 36, W - 28, 120)
-}
+    if (imgs.meals) {
+      doc.addPage()
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(30, 41, 59)
+      doc.text('Calorías por tipo de comida', 14, 20)
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(100, 116, 139)
+      doc.text('Total de kilocalorías acumuladas por categoría durante el período', 14, 28)
+      doc.addImage(imgs.meals, 'PNG', 14, 36, W - 28, 120)
+    }
 
-    // ── Top alimentos ──
+    y = 14
     if (s.topAlimentos.length) {
-      if (y + 40 > 277) { doc.addPage(); y = 14 }
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(13)
+      doc.addPage()
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(30, 41, 59)
       doc.text('Alimentos mas consumidos', 14, y); y += 6
       doc.autoTable({
         startY: y,
@@ -636,29 +723,24 @@ if (chartMeals.value) {
           { verde: 'Verde', amarillo: 'Amarillo', rojo: 'Rojo' }[a.color] || a.color,
         ]),
         headStyles: { fillColor: [30, 41, 59], textColor: 255 },
-        styles: { fontSize: 10 },
-        margin: { left: 14, right: 14 },
+        styles: { fontSize: 10 }, margin: { left: 14, right: 14 },
       })
       y = doc.lastAutoTable.finalY + 10
+
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(13)
+      doc.text('Calorias por tipo de comida', 14, y); y += 6
+      doc.autoTable({
+        startY: y,
+        head: [['Tipo de comida', 'kcal totales en el periodo']],
+        body: s.porTipo.map(t => [
+          { desayuno: 'Desayuno', comida: 'Comida', cena: 'Cena', snack: 'Snack' }[t.tipo],
+          `${t.kcal.toLocaleString()} kcal`,
+        ]),
+        headStyles: { fillColor: [0, 166, 126], textColor: 255 },
+        styles: { fontSize: 10 }, margin: { left: 14, right: 14 },
+      })
     }
 
-    // ── Por tipo de comida ──
-    if (y + 40 > 277) { doc.addPage(); y = 14 }
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(13)
-    doc.text('Calorias por tipo de comida', 14, y); y += 6
-    doc.autoTable({
-      startY: y,
-      head: [['Tipo de comida', 'kcal totales en el periodo']],
-      body: s.porTipo.map(t => [
-        { desayuno: 'Desayuno', comida: 'Comida', cena: 'Cena', snack: 'Snack' }[t.tipo],
-        `${t.kcal.toLocaleString()} kcal`,
-      ]),
-      headStyles: { fillColor: [0, 166, 126], textColor: 255 },
-      styles: { fontSize: 10 },
-      margin: { left: 14, right: 14 },
-    })
-
-    // ── Pie de página ──
     const pageCount = doc.getNumberOfPages()
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i)
@@ -676,7 +758,6 @@ if (chartMeals.value) {
   }
 }
 
-// ── Excel ─────────────────────────────────────────────────────────────────────
 async function exportarExcel() {
   if (!stats.value) { showToast('Sin datos para exportar', 'warning'); return }
   generando.value = 'excel'
@@ -697,7 +778,6 @@ async function exportarExcel() {
       .map(([k]) => ({ celiaquía: 'Celiaquía', hipertension: 'Hipertension', diabetes_t2: 'Diabetes T2' }[k] || k))
       .join(', ') || 'Ninguna'
 
-    // Hoja 1: Resumen
     const wsResumen = XLSX.utils.aoa_to_sheet([
       ['FOODLIGHT — REPORTE NUTRICIONAL'],
       [],
@@ -707,7 +787,7 @@ async function exportarExcel() {
       ['DATOS DEL USUARIO'],
       ['Nombre',        nombreUsuario.value],
       ['Correo',        user.email || '—'],
-      ['Edad', p.edad ? `${p.edad} años` : '—'],
+      ['Edad',          p.edad ? `${p.edad} años` : '—'],
       ['Sexo',          p.sexo === 'M' ? 'Masculino' : p.sexo === 'F' ? 'Femenino' : '—'],
       ['Peso',          p.peso ? `${p.peso} kg` : '—'],
       ['Estatura',      p.estatura ? `${p.estatura} cm` : '—'],
@@ -743,7 +823,6 @@ async function exportarExcel() {
     wsResumen['!cols'] = [{ wch: 28 }, { wch: 30 }]
     XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen')
 
-    // Hoja 2: Calorías por día
     const wsKcal = XLSX.utils.aoa_to_sheet([
       ['Fecha', 'kcal consumidas', 'Meta TDEE', 'Diferencia', 'Estado'],
       ...s.fechaLabels.map((f, i) => {
@@ -756,7 +835,6 @@ async function exportarExcel() {
     wsKcal['!cols'] = [{ wch: 14 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 14 }]
     XLSX.utils.book_append_sheet(wb, wsKcal, 'Calorias por dia')
 
-    // Hoja 3: Top alimentos
     const wsTop = XLSX.utils.aoa_to_sheet([
       ['#', 'Alimento', 'Veces consumido', 'Semaforo'],
       ...s.topAlimentos.map((a, i) => [i + 1, a.nombre, a.count, { verde: 'Verde', amarillo: 'Amarillo', rojo: 'Rojo' }[a.color] || a.color]),
@@ -764,7 +842,6 @@ async function exportarExcel() {
     wsTop['!cols'] = [{ wch: 5 }, { wch: 35 }, { wch: 18 }, { wch: 12 }]
     XLSX.utils.book_append_sheet(wb, wsTop, 'Top alimentos')
 
-    // Hoja 4: Detalle completo
     const wsDetalle = XLSX.utils.aoa_to_sheet([
       ['Fecha', 'Tipo comida', 'Origen', 'Nombre', 'kcal', 'Proteina g', 'Carbos g', 'Grasas g', 'Fibra g', 'Sodio mg', 'Semaforo'],
       ...s.rawData.map(e => [
@@ -794,7 +871,6 @@ async function exportarExcel() {
   }
 }
 
-// ── Watchers ──────────────────────────────────────────────────────────────────
 watch(() => fechaActual.value, (v) => {
   if (v.inicio && v.fin) cargarDatos()
 }, { deep: true })

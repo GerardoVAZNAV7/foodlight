@@ -123,9 +123,14 @@
 
         <!-- Preview en tiempo real del TDEE -->
         <div v-if="tmbPreview !== '—'" class="tdee-preview">
-          <span>🔥 TDEE estimado:</span>
-          <strong>{{ tdeePreview }} kcal/día</strong>
-          <small>(TMB {{ tmbPreview }} × {{ form.actividad }})</small>
+          <div class="tdee-icon">🔥</div>
+          <div class="tdee-content">
+            <span class="tdee-label">TDEE estimado</span>
+            <span class="tdee-value">{{ tdeePreview }} <small>kcal/día</small></span>
+          </div>
+          <div class="tdee-formula">
+            TMB {{ tmbPreview }} × {{ form.actividad }}
+          </div>
         </div>
 
         <!-- Padecimientos -->
@@ -147,7 +152,7 @@
           <span>💡 Tienes cambios sin guardar</span>
         </div>
 
-        <button type="submit" class="btn btn-primary btn-full" :disabled="saving">
+        <button type="submit" class="btn btn-primary btn-full save-btn" :disabled="saving">
           <span v-if="saving" class="spinner-sm"></span>
           {{ saving ? 'Guardando...' : '💾 Guardar perfil' }}
         </button>
@@ -404,15 +409,29 @@ async function saveProfile() {
 }
 
 .tdee-preview {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  background: var(--green-light); border: 1px solid var(--green);
-  border-radius: var(--radius-sm); padding: 10px 14px;
-  font-size: 14px; color: var(--green-dark);
+  display: flex; align-items: center; gap: 12px;
+  background: linear-gradient(135deg, var(--green-light), #f0fdf9);
+  border: 1.5px solid var(--green);
+  border-radius: var(--radius-md); padding: 14px 16px;
+  pointer-events: none; user-select: none;
 }
-.tdee-preview strong { font-size: 16px; font-weight: 800; }
-.tdee-preview small { color: var(--gray-500); font-size: 12px; }
+.tdee-icon { font-size: 22px; flex-shrink: 0; }
+.tdee-content { display: flex; flex-direction: column; gap: 1px; flex: 1; }
+.tdee-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--green-dark); opacity: .75;
+}
+.tdee-value {
+  font-size: 22px; font-weight: 800; color: var(--green-dark); line-height: 1.1;
+}
+.tdee-value small { font-size: 13px; font-weight: 600; opacity: .7; }
+.tdee-formula {
+  font-size: 11px; font-weight: 600; color: var(--gray-400);
+  background: rgba(0,0,0,.04); border-radius: var(--radius-sm);
+  padding: 4px 10px; white-space: nowrap; flex-shrink: 0;
+}
 
-.diseases-section { display: flex; flex-direction: column; gap: 10px; }
+.diseases-section { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px; }
 .disease-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .disease-chip {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
@@ -439,6 +458,8 @@ async function saveProfile() {
 
 .cta-card { display: flex; flex-direction: column; gap: 12px; text-align: center; }
 .cta-card p { font-size: 14px; color: var(--gray-600); }
+
+.save-btn { margin-top: 8px; }
 
 .spinner-sm {
   width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4);
