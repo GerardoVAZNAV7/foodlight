@@ -70,8 +70,8 @@ import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import StatusToast from '@/components/StatusToast.vue'
 
-const router = useRouter()
-const store  = useUserStore()
+const router  = useRouter()
+const store   = useUserStore()
 
 const form    = reactive({ email: '', password: '' })
 const errors  = reactive({ email: '', password: '' })
@@ -86,9 +86,9 @@ function showToast(message, type = 'success') {
 
 function validateField(field) {
   if (field === 'email') {
-    if (!form.email) errors.email = 'El correo es requerido.'
+    if (!form.email)                            errors.email = 'El correo es requerido.'
     else if (!/\S+@\S+\.\S+/.test(form.email)) errors.email = 'Correo no válido.'
-    else errors.email = ''
+    else                                        errors.email = ''
   }
   if (field === 'password') {
     errors.password = form.password ? '' : 'La contraseña es requerida.'
@@ -107,9 +107,15 @@ async function handleLogin() {
     await store.login(form.email, form.password)
     showToast('¡Bienvenido de vuelta! 🎉', 'success')
     await new Promise(r => setTimeout(r, 500))
-    router.push(store.hasProfile ? '/semaforo' : '/perfil')
+
+    // ── Redirección por rol ──────────────────────────────────────
+    if (store.isEspecialista) {
+      router.push('/dashboard')
+    } else {
+      router.push(store.hasProfile ? '/semaforo' : '/perfil')
+    }
+
   } catch (e) {
-    // Traducir errores comunes de Supabase
     const msg = translateError(e.message)
     showToast(msg, 'error')
   } finally {
@@ -119,8 +125,8 @@ async function handleLogin() {
 
 function translateError(msg) {
   if (msg.includes('Invalid login credentials')) return 'Correo o contraseña incorrectos.'
-  if (msg.includes('Email not confirmed'))       return 'Confirma tu correo antes de entrar.'
-  if (msg.includes('Too many requests'))         return 'Demasiados intentos. Espera un momento.'
+  if (msg.includes('Email not confirmed'))        return 'Confirma tu correo antes de entrar.'
+  if (msg.includes('Too many requests'))          return 'Demasiados intentos. Espera un momento.'
   return msg
 }
 </script>
@@ -129,7 +135,7 @@ function translateError(msg) {
 .auth-page {
   min-height: 100dvh;
   display: flex; flex-direction: column;
-  background: var(--gray-50);
+  background: var(--bg-page);
 }
 .auth-hero {
   position: relative; overflow: hidden;
@@ -149,14 +155,15 @@ function translateError(msg) {
 
 .auth-card {
   flex: 1;
-  background: white;
+  background: var(--bg-surface);
   border-radius: 28px 28px 0 0;
   margin-top: -24px;
   padding: 32px 24px;
   display: flex; flex-direction: column; gap: 20px;
   box-shadow: 0 -4px 30px rgba(0,0,0,.08);
+  transition: background .3s;
 }
-.form-title  { font-size: 22px; font-weight: 700; color: var(--gray-900); }
+.form-title  { font-size: 22px; font-weight: 700; color: var(--text-primary); }
 .form-fields { display: flex; flex-direction: column; gap: 16px; }
 
 .input-group            { position: relative; }
@@ -168,7 +175,7 @@ function translateError(msg) {
 
 .demo-hint {
   display: flex; align-items: center; gap: 8px;
-  font-size: 14px; color: var(--gray-500); justify-content: center;
+  font-size: 14px; color: var(--text-muted); justify-content: center;
 }
 .link-green { color: var(--green); font-weight: 600; text-decoration: none; }
 .link-green:hover { text-decoration: underline; }

@@ -4,9 +4,14 @@ import { ref, computed } from 'vue'
 import { supabase } from '@/services/supabase'
 
 export const useUserStore = defineStore('user', () => {
-  const authUser = ref(null)
-  const profile  = ref(null)
+  const authUser   = ref(null)
+  const profile    = ref(null)
   const isLoggedIn = computed(() => !!authUser.value)
+
+  // true  → el usuario es especialista
+  // false → el usuario es paciente
+  const isEspecialista = computed(() => profile.value?.especialista === true)
+
   // Verificar que el perfil tenga los datos mínimos para calcular TDEE
   const hasProfile = computed(() =>
     !!profile.value?.fecha_nacimiento &&
@@ -14,17 +19,29 @@ export const useUserStore = defineStore('user', () => {
     !!profile.value?.peso &&
     !!profile.value?.estatura
   )
+
   const _initialized = ref(false)
 
+  // ── Inicialización ──────────────────────────────────────────────────────────
   async function init() {
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.user) {
-      authUser.value = { id: session.user.id, email: session.user.email, name: session.user.user_metadata?.name }
+      authUser.value = {
+        id:    session.user.id,
+        email: session.user.email,
+        name:  session.user.user_metadata?.name,
+      }
       await loadProfile(session.user.id)
     }
+    _initialized.value = true
+
     supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
-        authUser.value = { id: session.user.id, email: session.user.email, name: session.user.user_metadata?.name }
+        authUser.value = {
+          id:    session.user.id,
+          email: session.user.email,
+          name:  session.user.user_metadata?.name,
+        }
         await loadProfile(session.user.id)
       } else {
         authUser.value = null
@@ -33,6 +50,7 @@ export const useUserStore = defineStore('user', () => {
     })
   }
 
+  // ── Auth ────────────────────────────────────────────────────────────────────
   async function register(name, email, password) {
     const { data, error } = await supabase.auth.signUp({
       email, password,
@@ -55,13 +73,14 @@ export const useUserStore = defineStore('user', () => {
     profile.value  = null
   }
 
+  // ── Carga de perfil ─────────────────────────────────────────────────────────
   async function loadProfile(userId) {
     const { data: p } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .maybeSingle()
-console.log('profiles row:', p)
+
     const { data: conds } = await supabase
       .from('usuario_condiciones')
       .select('condicion_id, activa, condiciones_medicas(clave)')
@@ -75,34 +94,37 @@ console.log('profiles row:', p)
 
     if (p) {
       profile.value = {
-        // ── Nombre desde la tabla profiles ──────────────────────────────────
-        nombre: p.nombre || '',
-        // Guardamos la fecha RAW para el input[type=date]
+        nombre:           p.nombre || '',
         fecha_nacimiento: p.fecha_nacimiento || '',
-        // Calculamos edad solo para mostrar (no para lógica de negocio)
-        edad:      calcularEdad(p.fecha_nacimiento),
-        sexo:      p.sexo,
-        peso:      parseFloat(p.peso_kg) || null,
-        estatura:  parseFloat(p.talla_cm) || null,
-        actividad: String(p.actividad || '1.375'),
+        edad:             calcularEdad(p.fecha_nacimiento),
+        sexo:             p.sexo,
+        peso:             parseFloat(p.peso_kg)   || null,
+        estatura:         parseFloat(p.talla_cm)  || null,
+        actividad:        String(p.actividad || '1.375'),
+        // ── Rol ──
+        especialista:     p.especialista === true,
+        especialista_id:  p.especialista_id || null,
+        // ────────
         condiciones,
-        _raw: p
+        _raw: p,
       }
     } else {
-      // Sin perfil en DB aún, inicializar vacío
       profile.value = {
-        nombre: '',
+        nombre:           '',
         fecha_nacimiento: '',
-        edad: null,
-        sexo: '',
-        peso: null,
-        estatura: null,
-        actividad: '1.375',
+        edad:             null,
+        sexo:             '',
+        peso:             null,
+        estatura:         null,
+        actividad:        '1.375',
+        especialista:     false,
+        especialista_id:  null,
         condiciones,
       }
     }
   }
 
+  // ── Guardar perfil ──────────────────────────────────────────────────────────
   async function saveProfile(data) {
     const userId = authUser.value.id
 
@@ -115,7 +137,9 @@ console.log('profiles row:', p)
         talla_cm:         data.estatura,
         actividad:        parseFloat(data.actividad) || 1.375,
         fecha_nacimiento: data.fecha_nacimiento,
-        updated_at:       new Date().toISOString()
+        // Permitir actualizar el especialista asignado desde el perfil
+        especialista_id:  data.especialista_id ?? null,
+        updated_at:       new Date().toISOString(),
       })
     if (pErr) throw new Error(pErr.message)
 
@@ -124,8 +148,7 @@ console.log('profiles row:', p)
       .select('id, clave')
     if (cErr) throw new Error(cErr.message)
 
-    const hoy = new Date().toISOString().split('T')[0]
-
+    const hoy  = new Date().toISOString().split('T')[0]
     const rows = (todasConds || []).map(cond => ({
       usuario_id:   userId,
       condicion_id: cond.id,
@@ -136,12 +159,12 @@ console.log('profiles row:', p)
     const { error: ucErr } = await supabase
       .from('usuario_condiciones')
       .upsert(rows, { onConflict: 'usuario_id,condicion_id' })
-
     if (ucErr) throw new Error(ucErr.message)
 
     await loadProfile(userId)
   }
 
+  // ── Helpers ─────────────────────────────────────────────────────────────────
   function calcularEdad(fechaNacimiento) {
     if (!fechaNacimiento) return null
     const hoy = new Date()
@@ -153,5 +176,17 @@ console.log('profiles row:', p)
     return edad
   }
 
-  return { authUser, isLoggedIn, profile, hasProfile, init, register, login, logout, saveProfile, _initialized }
+  return {
+    authUser,
+    isLoggedIn,
+    isEspecialista,
+    profile,
+    hasProfile,
+    init,
+    register,
+    login,
+    logout,
+    saveProfile,
+    _initialized,
+  }
 })
