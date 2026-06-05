@@ -69,7 +69,6 @@
             <h4 class="pc-nombre">{{ p.nombre || 'Sin nombre' }}</h4>
             <span class="pc-edad">{{ p.edad !== null ? `${p.edad} años` : 'Edad no registrada' }}</span>
           </div>
-          <!-- Badge actividad hoy -->
           <div class="pc-hoy-badge" :class="p._registroHoy ? 'activo' : 'inactivo'">
             {{ p._registroHoy ? '✓ Hoy' : 'Sin registro' }}
           </div>
@@ -99,11 +98,7 @@
 
         <!-- Condiciones médicas -->
         <div v-if="condicionesActivas(p).length" class="pc-conds">
-          <span
-            v-for="c in condicionesActivas(p)"
-            :key="c"
-            class="cond-badge"
-          >{{ c }}</span>
+          <span v-for="c in condicionesActivas(p)" :key="c" class="cond-badge">{{ c }}</span>
         </div>
 
         <!-- Semáforo del día -->
@@ -185,9 +180,9 @@ import StatusToast from '@/components/StatusToast.vue'
 const store = useUserStore()
 const toast = reactive({ show: false, message: '', type: 'success' })
 
-const pacientes           = ref([])
-const loading             = ref(false)
-const busqueda            = ref('')
+const pacientes            = ref([])
+const loading              = ref(false)
+const busqueda             = ref('')
 const pacienteSeleccionado = ref(null)
 
 const nombreEspecialista = computed(() =>
@@ -198,8 +193,7 @@ const nombreEspecialista = computed(() =>
 const AVATAR_COLORS = ['#00C896','#4361EE','#FF4757','#FFB800','#9B59B6','#1ABC9C','#E67E22']
 function avatarColor(nombre) {
   if (!nombre) return AVATAR_COLORS[0]
-  const idx = nombre.charCodeAt(0) % AVATAR_COLORS.length
-  return AVATAR_COLORS[idx]
+  return AVATAR_COLORS[nombre.charCodeAt(0) % AVATAR_COLORS.length]
 }
 function inicial(nombre) {
   return (nombre || '?').charAt(0).toUpperCase()
@@ -239,7 +233,9 @@ function colorKcalHoy(p) {
   return 'var(--yellow)'
 }
 
-const pacientesConRegistroHoy = computed(() => pacientes.value.filter(p => p._registroHoy).length)
+const pacientesConRegistroHoy = computed(() =>
+  pacientes.value.filter(p => p._registroHoy).length
+)
 
 const pacientesFiltrados = computed(() => {
   if (!busqueda.value) return pacientes.value
@@ -251,29 +247,46 @@ const pacientesFiltrados = computed(() => {
 async function cargarPacientes() {
   const userId = store.authUser?.id
   if (!userId) return
+
   loading.value = true
+  console.log('[Dashboard] Buscando pacientes para especialista ID:', userId)
+
   try {
-    // 1. Pacientes que tienen a este especialista asignado
+    // 1. Traer todos los profiles que tienen este especialista_id asignado
+    //    Sin filtrar por especialista=false para evitar falsos negativos
     const { data: profs, error: profErr } = await supabase
       .from('profiles')
       .select('*')
       .eq('especialista_id', userId)
-      .eq('especialista', false)
       .order('nombre')
 
+    console.log('[Dashboard] Profiles encontrados:', profs?.length ?? 0, profs)
+
     if (profErr) throw profErr
-    if (!profs?.length) { pacientes.value = []; return }
+    if (!profs?.length) {
+      pacientes.value = []
+      return
+    }
 
-    const ids = profs.map(p => p.id)
+    // Filtrar solo los que NO son especialistas (por si acaso)
+    const soloPacientes = profs.filter(p => p.especialista !== true)
+    console.log('[Dashboard] Pacientes (sin especialistas):', soloPacientes.length)
 
-    // 2. Condiciones médicas activas de cada paciente
+    if (!soloPacientes.length) {
+      pacientes.value = []
+      return
+    }
+
+    const ids = soloPacientes.map(p => p.id)
+
+    // 2. Condiciones médicas activas
     const { data: conds } = await supabase
       .from('usuario_condiciones')
       .select('usuario_id, activa, condiciones_medicas(clave)')
       .in('usuario_id', ids)
       .eq('activa', true)
 
-    // 3. Entradas del diario de HOY de cada paciente
+    // 3. Entradas del diario de HOY
     const hoy = new Date().toISOString().split('T')[0]
     const { data: diario } = await supabase
       .from('diario_alimenticio')
@@ -282,20 +295,22 @@ async function cargarPacientes() {
       .eq('fecha', hoy)
       .order('created_at')
 
-    // ── Enriquecer cada paciente ────────────────────────────────────────────
+    // ── Indexar condiciones por paciente ────────────────────────────────────
     const condPorPaciente = {}
     for (const c of conds || []) {
       if (!condPorPaciente[c.usuario_id]) condPorPaciente[c.usuario_id] = {}
       condPorPaciente[c.usuario_id][c.condiciones_medicas.clave] = true
     }
 
+    // ── Indexar diario por paciente ─────────────────────────────────────────
     const diarioPorPaciente = {}
     for (const e of diario || []) {
       if (!diarioPorPaciente[e.user_id]) diarioPorPaciente[e.user_id] = []
       diarioPorPaciente[e.user_id].push(e)
     }
 
-    pacientes.value = profs.map(p => {
+    // ── Enriquecer cada paciente ─────────────────────────────────────────────
+    pacientes.value = soloPacientes.map(p => {
       const entradas = diarioPorPaciente[p.id] || []
       const kcalHoy  = entradas.reduce((s, e) =>
         s + parseFloat(e.origen === 'receta' ? (e.receta_kcal || 0) : (e.alimento_kcal || 0)), 0)
@@ -305,7 +320,6 @@ async function cargarPacientes() {
         if (c && semaforo[c] !== undefined) semaforo[c]++
       }
 
-      // Calcular edad desde fecha_nacimiento
       let edad = null
       if (p.fecha_nacimiento) {
         const [y, m, d] = p.fecha_nacimiento.split('-').map(Number)
@@ -317,16 +331,16 @@ async function cargarPacientes() {
       return {
         ...p,
         edad,
-        _condiciones:  condPorPaciente[p.id] || {},
-        _entradasHoy:  entradas,
-        _kcalHoy:      entradas.length ? Math.round(kcalHoy) : null,
-        _registroHoy:  entradas.length > 0,
-        _semaforo:     entradas.length ? semaforo : null,
+        _condiciones: condPorPaciente[p.id] || {},
+        _entradasHoy: entradas,
+        _kcalHoy:     entradas.length ? Math.round(kcalHoy) : null,
+        _registroHoy: entradas.length > 0,
+        _semaforo:    entradas.length ? semaforo : null,
       }
     })
 
   } catch (e) {
-    console.error('Error cargando pacientes:', e)
+    console.error('[Dashboard] Error cargando pacientes:', e)
     toast.show = false
     setTimeout(() => {
       toast.message = 'Error al cargar pacientes: ' + e.message
@@ -348,7 +362,6 @@ onMounted(cargarPacientes)
 <style scoped>
 .dashboard-page { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
 
-/* Header */
 .dash-header {
   display: flex; align-items: center; justify-content: space-between;
   background: linear-gradient(135deg, var(--green-light), var(--blue-light));
@@ -362,23 +375,19 @@ onMounted(cargarPacientes)
 .ms-num { display: block; font-size: 24px; font-weight: 800; color: var(--text-primary); }
 .ms-lbl { font-size: 11px; color: var(--text-muted); font-weight: 600; }
 
-/* Buscador */
 .search-row { display: flex; }
 .search-row .input { flex: 1; }
 
-/* Loading */
 .loading-card { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 40px; }
 .spinner-lg { width: 40px; height: 40px; border: 4px solid var(--gray-200); border-top-color: var(--green); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* Empty */
 .empty-card { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding: 40px 24px; }
 .empty-icon { font-size: 48px; }
 .empty-card h3 { font-size: 18px; font-weight: 700; }
 .empty-card p  { font-size: 14px; color: var(--text-secondary); }
 .empty-hint    { font-size: 12px !important; color: var(--text-muted) !important; max-width: 300px; line-height: 1.6; }
 
-/* Grid de pacientes */
 .pacientes-grid { display: flex; flex-direction: column; gap: 12px; }
 
 .paciente-card {
@@ -388,7 +397,6 @@ onMounted(cargarPacientes)
 }
 .paciente-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 
-/* Header de card */
 .pc-header { display: flex; align-items: center; gap: 12px; }
 .pc-avatar {
   width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
@@ -405,7 +413,6 @@ onMounted(cargarPacientes)
 .pc-hoy-badge.activo   { background: var(--green-light); color: var(--green-dark); }
 .pc-hoy-badge.inactivo { background: var(--gray-100);    color: var(--gray-400); }
 
-/* Métricas */
 .pc-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .pcm-item {
   background: var(--bg-elevated); border-radius: var(--radius-sm); padding: 10px 6px;
@@ -414,14 +421,12 @@ onMounted(cargarPacientes)
 .pcm-val { font-size: 14px; font-weight: 700; color: var(--text-primary); }
 .pcm-lbl { font-size: 10px; color: var(--text-muted); }
 
-/* Condiciones */
 .pc-conds { display: flex; flex-wrap: wrap; gap: 6px; }
 .cond-badge {
   font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px;
   background: var(--blue-light); color: var(--blue);
 }
 
-/* Semáforo del día */
 .pc-semaforo { display: flex; align-items: center; gap: 8px; }
 .pcs-bar {
   flex: 1; height: 8px; border-radius: 99px; overflow: hidden; display: flex; gap: 2px;
@@ -438,7 +443,6 @@ onMounted(cargarPacientes)
 .pcs-dot.rojo     { background: var(--red-light);    color: var(--red); }
 .pc-semaforo-empty { font-size: 12px; color: var(--text-muted); font-style: italic; }
 
-/* Modal */
 .modal-overlay {
   position: fixed; inset: 0; z-index: 500;
   background: rgba(0,0,0,.5); backdrop-filter: blur(4px);

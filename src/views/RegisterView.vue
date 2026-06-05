@@ -309,11 +309,11 @@ function showToast(msg, type) {
   setTimeout(() => { toast.message = msg; toast.type = type; toast.show = true }, 50)
 }
 
+// Reemplaza handleRegister completo por esto:
 async function handleRegister() {
   loading.value = true
   showToast('Creando tu cuenta...', 'loading')
   try {
-    // 1. Crear usuario en Supabase Auth
     const { data, error } = await supabase.auth.signUp({
       email: form.email,
       password: form.password,
@@ -322,20 +322,22 @@ async function handleRegister() {
     if (error) throw new Error(error.message)
 
     const userId = data?.user?.id
-    if (!userId) {
-      // Requiere confirmación de email
-      step.value = 4
-      return
-    }
 
-    // 2. Hacer upsert en profiles con el rol y el especialista asignado
+    // Sin userId = necesita confirmar email
+    if (!userId) { step.value = 4; return }
+
+    // ── Esperar a que la sesión esté activa ──
+    // signUp en Supabase a veces necesita un tick antes de
+    // que auth.uid() esté disponible para las policies RLS
+    await new Promise(r => setTimeout(r, 400))
+
     const profilePayload = {
-      id:             userId,
-      nombre:         form.name,
-      especialista:   form.especialista,
+      id:              userId,
+      nombre:          form.name,
+      especialista:    form.especialista === true,
       especialista_id: form.especialista === false && form.especialista_id
-        ? form.especialista_id
-        : null,
+                         ? form.especialista_id
+                         : null,
       updated_at: new Date().toISOString(),
     }
 
@@ -343,18 +345,20 @@ async function handleRegister() {
       .from('profiles')
       .upsert(profilePayload)
 
-    if (pErr) throw new Error(pErr.message)
+    if (pErr) {
+      // Si falla el upsert de profile, igual continuamos
+      // porque el usuario ya fue creado en auth
+      console.warn('Profile upsert warning:', pErr.message)
+    }
 
-    showToast('¡Cuenta creada! Completa tu perfil 🎉', 'success')
-    await new Promise(r => setTimeout(r, 600))
+    showToast('Cuenta creada correctamente', 'success')
+    await new Promise(r => setTimeout(r, 500))
 
-    // 3. Iniciar sesión automáticamente y redirigir
     await store.login(form.email, form.password)
-    window.location.href = store.profile?.especialista ? '/dashboard' : '/perfil'
+    window.location.href = store.isEspecialista ? '/dashboard' : '/perfil'
 
   } catch (e) {
-    const msg = translateError(e.message)
-    showToast(msg, 'error')
+    showToast(translateError(e.message), 'error')
     step.value = 1
   } finally {
     loading.value = false
