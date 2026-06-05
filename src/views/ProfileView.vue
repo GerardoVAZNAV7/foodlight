@@ -220,6 +220,39 @@
         </div>
       </div>
     </div>
+
+    <!-- Mi Especialista -->
+    <div v-if="store.hasProfile && especialistaInfo" class="especialista-section card">
+      <h3 class="section-title"><span>👨‍⚕️</span> Mi Especialista</h3>
+      <div class="esp-card">
+        <div class="esp-header">
+          <div class="esp-avatar">{{ especialistaInicial }}</div>
+          <div class="esp-info">
+            <h4 class="esp-nombre">{{ especialistaInfo.nombre || 'Especialista' }}</h4>
+            <span v-if="especialistaInfo.especialidad" class="esp-especialidad">{{ especialistaInfo.especialidad }}</span>
+          </div>
+        </div>
+        <div v-if="especialistaInfo.descripcion" class="esp-desc">{{ especialistaInfo.descripcion }}</div>
+        <div class="esp-details">
+          <div v-if="especialistaInfo.telefono" class="esp-row">
+            <span class="esp-row-icon">📞</span>
+            <span>{{ especialistaInfo.telefono }}</span>
+          </div>
+          <div v-if="especialistaInfo.institucion" class="esp-row">
+            <span class="esp-row-icon">🏥</span>
+            <span>{{ especialistaInfo.institucion }}</span>
+          </div>
+          <div v-if="especialistaInfo.cedula" class="esp-row">
+            <span class="esp-row-icon">🪪</span>
+            <span>Cédula: {{ especialistaInfo.cedula }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div v-else-if="store.hasProfile && !cargandoEspecialista" class="especialista-section card">
+      <h3 class="section-title"><span>👨‍⚕️</span> Mi Especialista</h3>
+      <p class="esp-empty">No tienes un especialista asignado. Pregunta a tu especialista para que te agregue.</p>
+    </div>
   </div>
 </template>
 
@@ -235,6 +268,8 @@ const isDirty = ref(false)
 const toast = reactive({ show: false, message: '', type: 'success' })
 const dietas = ref([])
 const loadingDietas = ref(false)
+const especialistaInfo = ref(null)
+const cargandoEspecialista = ref(false)
 
 const diseases = [
   { key: 'celiaquía',    label: 'Celiaquía',    icon: '🌾' },
@@ -308,6 +343,7 @@ watch(() => store.profile, (p) => {
   form.condiciones.diabetes_t2  = p.condiciones?.diabetes_t2  || false
   isDirty.value = false
   cargarDietas()
+  cargarEspecialista()
 }, { immediate: true })
 
 watch(form, () => { isDirty.value = true }, { deep: true })
@@ -414,6 +450,29 @@ async function cargarDietas() {
     .order('created_at', { ascending: false })
   dietas.value = data || []
   loadingDietas.value = false
+}
+
+const especialistaInicial = computed(() => {
+  const n = especialistaInfo.value?.nombre?.trim()
+  return n ? n.charAt(0).toUpperCase() : '👨‍⚕️'
+})
+
+async function cargarEspecialista() {
+  const espId = store.profile?.especialista_id
+  if (!espId) { especialistaInfo.value = null; return }
+  cargandoEspecialista.value = true
+  try {
+    const { data } = await supabase
+      .from('profiles')
+      .select('nombre, especialidad, telefono, cedula, institucion, descripcion')
+      .eq('id', espId)
+      .maybeSingle()
+    especialistaInfo.value = data || null
+  } catch {
+    especialistaInfo.value = null
+  } finally {
+    cargandoEspecialista.value = false
+  }
 }
 
 async function saveProfile() {
@@ -577,6 +636,24 @@ async function saveProfile() {
 .di-notas { font-size: 12px; color: var(--gray-500); background: white; border-radius: var(--radius-sm); padding: 8px 12px; }
 
 .caloric-diet-macros { display: flex; gap: 14px; font-size: 12px; font-weight: 600; color: var(--gray-500); background: var(--gray-50); border-radius: var(--radius-md); padding: 10px 16px; justify-content: center; }
+
+.especialista-section { display: flex; flex-direction: column; gap: 14px; }
+.esp-card { display: flex; flex-direction: column; gap: 12px; }
+.esp-header { display: flex; align-items: center; gap: 14px; }
+.esp-avatar {
+  width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--green), var(--blue));
+  color: white; font-size: 18px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.esp-info { flex: 1; min-width: 0; }
+.esp-nombre { font-size: 16px; font-weight: 700; color: var(--gray-900); }
+.esp-especialidad { font-size: 12px; color: var(--green-dark); font-weight: 600; background: var(--green-light); padding: 2px 10px; border-radius: 99px; display: inline-block; margin-top: 4px; }
+.esp-desc { font-size: 13px; color: var(--gray-600); line-height: 1.5; padding: 10px 14px; background: var(--gray-50); border-radius: var(--radius-md); }
+.esp-details { display: flex; flex-direction: column; gap: 6px; }
+.esp-row { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--gray-600); }
+.esp-row-icon { font-size: 15px; width: 20px; text-align: center; }
+.esp-empty { font-size: 13px; color: var(--gray-500); text-align: center; padding: 16px; }
 
 .spinner-sm {
   width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4);
