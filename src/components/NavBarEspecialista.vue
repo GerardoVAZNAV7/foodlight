@@ -25,6 +25,12 @@
         <kbd class="shortcut-hint">Alt+I</kbd>
       </router-link>
 
+      <router-link to="/esp/recetas" class="sidebar-link" active-class="active">
+        <span class="sidebar-icon">🍽️</span>
+        <span class="sidebar-label">Recetas</span>
+        <kbd class="shortcut-hint">Alt+E</kbd>
+      </router-link>
+
       <div class="nav-divider">CATÁLOGOS</div>
 
       <router-link to="/esp/alimentos" class="sidebar-link" active-class="active">

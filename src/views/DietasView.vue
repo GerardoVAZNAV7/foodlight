@@ -226,17 +226,24 @@ const dietasFiltradas = computed(() => {
 async function cargar() {
   loading.value = true
   const uid = store.authUser?.id
-  const [{ data: dietasData }, { data: pacs }] = await Promise.all([
-    supabase.from('dietas').select('*').eq('especialista_id', uid).order('created_at', { ascending: false }),
-    supabase.from('profiles').select('id, nombre').eq('especialista_id', uid).eq('especialista', false).order('nombre'),
-  ])
-  pacientes.value = pacs || []
-  const pacMap = Object.fromEntries((pacs || []).map(p => [p.id, p.nombre]))
-  dietas.value = (dietasData || []).map(d => ({
-    ...d,
-    _paciente_nombre: d.paciente_id ? (pacMap[d.paciente_id] || 'Paciente no encontrado') : null,
-  }))
-  loading.value = false
+  try {
+    const [{ data: dietasData }, { data: pacs }] = await Promise.all([
+      supabase.from('dietas').select('*').eq('especialista_id', uid).order('created_at', { ascending: false }),
+      supabase.from('profiles').select('id, nombre').eq('especialista_id', uid).eq('especialista', false).order('nombre'),
+    ])
+    pacientes.value = pacs || []
+    const pacMap = Object.fromEntries((pacs || []).map(p => [p.id, p.nombre]))
+    dietas.value = (dietasData || []).map(d => ({
+      ...d,
+      _paciente_nombre: d.paciente_id ? (pacMap[d.paciente_id] || 'Paciente no encontrado') : null,
+    }))
+  } catch (e) {
+    showToast('Error al cargar dietas: ' + e.message, 'error')
+    dietas.value = []
+    pacientes.value = []
+  } finally {
+    loading.value = false
+  }
 }
 
 function abrirModal(d = null) {

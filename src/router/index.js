@@ -49,6 +49,21 @@ const routes = [
     component: () => import('@/views/AlimentosAdminView.vue'),
     meta: { requiresEspecialista: true },
   },
+  {
+    path: '/esp/recetas',
+    component: () => import('@/views/RecetasAdminView.vue'),
+    meta: { requiresEspecialista: true },
+  },
+  {
+    path: '/esp/recetas/nueva',
+    component: () => import('@/views/RecetasAltaView.vue'),
+    meta: { requiresEspecialista: true },
+  },
+  {
+    path: '/esp/recetas/:id',
+    component: () => import('@/views/RecetasAltaView.vue'),
+    meta: { requiresEspecialista: true },
+  },
 ]
 
 const router = createRouter({

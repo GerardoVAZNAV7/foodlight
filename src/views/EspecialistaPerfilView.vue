@@ -137,30 +137,40 @@ async function cargarPerfil() {
   const uid = store.authUser?.id
   if (!uid) return
 
-  const { data } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', uid)
-    .maybeSingle()
+  try {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', uid)
+      .maybeSingle()
 
-  if (data) {
-    form.nombre = data.nombre || ''
-    form.apellido = data.apellido || ''
-    form.especialidad = data.especialidad || ''
-    form.cedula = data.cedula || ''
-    form.telefono = data.telefono || ''
-    form.institucion = data.institucion || ''
-    form.descripcion = data.descripcion || ''
+    if (data) {
+      form.nombre = data.nombre || ''
+      form.apellido = data.apellido || ''
+      form.especialidad = data.especialidad || ''
+      form.cedula = data.cedula || ''
+      form.telefono = data.telefono || ''
+      form.institucion = data.institucion || ''
+      form.descripcion = data.descripcion || ''
+    }
+  } catch (e) {
+    console.error('Error cargando perfil:', e)
   }
 
-  // Total de pacientes
-  const { count } = await supabase
-    .from('profiles')
-    .select('id', { count: 'exact', head: true })
-    .eq('especialista_id', uid)
-    .eq('especialista', false)
+  // Total de pacientes — sin head:true para evitar problema con RLS
+  try {
+    const { data: pacs } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('especialista_id', uid)
+      .eq('especialista', false)
 
-  totalPacientes.value = count || 0
+    totalPacientes.value = pacs?.length || 0
+  } catch (e) {
+    console.error('Error contando pacientes:', e)
+    totalPacientes.value = 0
+  }
+
   isDirty.value = false
 }
 
@@ -170,21 +180,42 @@ async function guardar() {
   saving.value = true
   showToast('Guardando...', 'loading')
   try {
+    // La tabla profiles solo tiene columnas: nombre, especialista, updated_at, etc.
+    // Las columnas extra (apellido, especialidad, cedula, etc.) deben existir en Supabase.
+    const payload = {
+      id: store.authUser.id,
+      nombre: form.nombre.trim(),
+      updated_at: new Date().toISOString(),
+    }
+
+    // Solo incluir campos si la columna existe (opcional: enviar todos y que Supabase ignore los que no existen)
+    const extraFields = {
+      apellido: form.apellido.trim(),
+      especialidad: form.especialidad.trim(),
+      cedula: form.cedula.trim(),
+      telefono: form.telefono.trim(),
+      institucion: form.institucion.trim(),
+      descripcion: form.descripcion.trim().slice(0, 500),
+    }
+
+    // Intentar guardar con todos los campos; si falla, reintentar solo con los básicos
     const { error } = await supabase
       .from('profiles')
-      .upsert({
-        id: store.authUser.id,
-        nombre: form.nombre.trim(),
-        apellido: form.apellido.trim(),
-        especialidad: form.especialidad.trim(),
-        cedula: form.cedula.trim(),
-        telefono: form.telefono.trim(),
-        institucion: form.institucion.trim(),
-        descripcion: form.descripcion.trim().slice(0, 500),
-        especialista: true,
-        updated_at: new Date().toISOString(),
-      })
-    if (error) throw error
+      .update({ ...payload, ...extraFields, especialista: true })
+      .eq('id', store.authUser.id)
+
+    if (error) {
+      // Reintentar solo con columnas base si el error es de columna inexistente
+      if (error.message?.includes('column') || error.code === '42703') {
+        const { error: e2 } = await supabase
+          .from('profiles')
+          .update(payload)
+          .eq('id', store.authUser.id)
+        if (e2) throw e2
+      } else {
+        throw error
+      }
+    }
 
     // Actualizar store
     if (store.profile) store.profile.nombre = form.nombre.trim()

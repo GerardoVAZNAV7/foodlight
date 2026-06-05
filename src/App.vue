@@ -1,7 +1,11 @@
 <template>
   <div class="app-shell" :class="{ 'logged-in': store.isLoggedIn }">
-    <!-- Desktop Sidebar Nav -->
-    <aside v-if="store.isLoggedIn" class="sidebar">
+
+    <!-- ── Desktop Sidebar: Especialista ── -->
+    <NavBarEspecialista v-if="store.isLoggedIn && store.isEspecialista" />
+
+    <!-- ── Desktop Sidebar: Paciente ── -->
+    <aside v-else-if="store.isLoggedIn && !store.isEspecialista" class="sidebar">
       <div class="sidebar-brand">
         <span class="brand-icon">🚦</span>
         <span class="brand-name">FoodLight</span>
@@ -39,13 +43,13 @@
         </router-link>
       </nav>
 
-      <!-- Dark mode toggle en sidebar (solo desktop) -->
+      <!-- Dark mode toggle en sidebar (solo desktop paciente) -->
       <div class="sidebar-theme-row">
         <span class="theme-label">{{ isDarkMode ? 'Modo oscuro' : 'Modo claro' }}</span>
         <DarkModeToggle @change="onThemeChange" />
       </div>
 
-      <!-- Footer con dropdown de usuario estilo Google -->
+      <!-- Footer con dropdown de usuario -->
       <div class="sidebar-footer" ref="footerRef">
         <button class="sidebar-user-btn" @click="toggleUserMenu" :class="{ open: userMenuOpen }">
           <div class="sidebar-avatar">{{ initials }}</div>
@@ -56,10 +60,8 @@
           <span class="chevron">{{ userMenuOpen ? '▲' : '▼' }}</span>
         </button>
 
-        <!-- Dropdown popup -->
         <transition name="user-menu">
           <div v-if="userMenuOpen" class="user-dropdown">
-            <!-- Header con saludo y avatar -->
             <div class="ud-header">
               <div class="ud-avatar">{{ initials }}</div>
               <div class="ud-info">
@@ -68,10 +70,7 @@
                 <span class="ud-email">{{ store.authUser?.email }}</span>
               </div>
             </div>
-
             <div class="ud-divider"></div>
-
-            <!-- Acciones -->
             <div class="ud-actions">
               <router-link to="/perfil" class="ud-item" @click="userMenuOpen = false">
                 <span class="ud-item-icon">👤</span>
@@ -87,8 +86,8 @@
       </div>
     </aside>
 
-    <!-- Mobile Top Navbar (incluye toggle de tema) -->
-    <NavBar v-if="store.isLoggedIn" />
+    <!-- Mobile Top Navbar — solo para pacientes (especialista tiene su propia sidebar) -->
+    <NavBar v-if="store.isLoggedIn && !store.isEspecialista" />
 
     <!-- Main Content -->
     <main class="main-content" :class="{ 'with-nav': store.isLoggedIn }">
@@ -99,8 +98,8 @@
       </router-view>
     </main>
 
-    <!-- Mobile Bottom Nav -->
-    <BottomNav v-if="store.isLoggedIn" />
+    <!-- Mobile Bottom Nav — solo pacientes -->
+    <BottomNav v-if="store.isLoggedIn && !store.isEspecialista" />
 
     <!-- Shortcut toast -->
     <transition name="shortcut-toast">
@@ -116,6 +115,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useUserStore } from '@/stores/userStore'
 import { useRouter } from 'vue-router'
 import NavBar from '@/components/NavBar.vue'
+import NavBarEspecialista from '@/components/NavBarEspecialista.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import DarkModeToggle from '@/components/DarkModeToggle.vue'
 
@@ -142,7 +142,7 @@ const initials = computed(() => {
   return n.charAt(0).toUpperCase()
 })
 
-// ── Dropdown de usuario ──────────────────────────────────────────────────────
+// ── Dropdown de usuario (solo sidebar paciente) ──────────────────────────────
 const userMenuOpen = ref(false)
 const footerRef = ref(null)
 
@@ -172,9 +172,9 @@ function showShortcut(label) {
   shortcutTimer = setTimeout(() => { shortcutLabel.value = '' }, 1400)
 }
 
-// ── Global keyboard shortcuts ────────────────────────────────────────────────
+// ── Global keyboard shortcuts (solo pacientes) ────────────────────────────────
 function onKeydown(e) {
-  if (!store.isLoggedIn) return
+  if (!store.isLoggedIn || store.isEspecialista) return
   const tag = document.activeElement?.tagName
   if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) {
     if (!(e.altKey && e.key === 'b')) return
@@ -233,7 +233,6 @@ function focusSearch() {
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   document.addEventListener('mousedown', onClickOutside)
-  // Leer tema inicial
   isDarkMode.value = document.documentElement.hasAttribute('data-theme')
 })
 onUnmounted(() => {
@@ -247,7 +246,6 @@ onUnmounted(() => {
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* ── Shell: mobile-first, desktop grid ── */
 .app-shell {
   min-height: 100dvh;
   background: var(--bg-page);
@@ -279,6 +277,7 @@ onUnmounted(() => {
 
   .app-shell.logged-in .mobile-only-navbar { display: none; }
 
+  /* El aside paciente ocupa grid-area sidebar */
   .sidebar {
     display: flex;
     flex-direction: column;
@@ -293,6 +292,12 @@ onUnmounted(() => {
     transition: background .3s ease, border-color .3s ease;
   }
 
+  /* NavBarEspecialista ya tiene su propio aside con clase sidebar-esp
+     — pero al estar en el grid necesita grid-area: sidebar */
+  .app-shell.logged-in .sidebar-esp {
+    grid-area: sidebar;
+  }
+
   .main-content {
     grid-area: main;
     padding-bottom: 0 !important;
@@ -301,6 +306,7 @@ onUnmounted(() => {
     transition: background .3s ease;
   }
 
+  /* Ocultar navbar y bottom nav de móvil en desktop */
   .app-shell.logged-in nav.bottom-nav { display: none; }
   .app-shell.logged-in header.navbar { display: none; }
 }
@@ -309,7 +315,7 @@ onUnmounted(() => {
   .app-shell.logged-in { grid-template-columns: 260px 1fr; }
 }
 
-/* ── Sidebar styles ── */
+/* ── Sidebar paciente styles ── */
 .sidebar-brand {
   display: flex; align-items: center; gap: 10px;
   padding: 8px 12px 20px;
@@ -349,7 +355,6 @@ onUnmounted(() => {
 .sidebar-link:hover .shortcut-hint,
 .sidebar-link.active .shortcut-hint { opacity: 1; }
 
-/* ── Theme toggle row en sidebar ── */
 .sidebar-theme-row {
   display: flex;
   align-items: center;
@@ -367,7 +372,6 @@ onUnmounted(() => {
   color: var(--text-secondary);
 }
 
-/* ── Sidebar footer con dropdown ── */
 .sidebar-footer {
   border-top: 1px solid var(--border-light);
   padding-top: 12px;
@@ -401,7 +405,6 @@ onUnmounted(() => {
 }
 .chevron { font-size: 9px; color: var(--text-muted); flex-shrink: 0; }
 
-/* ── User dropdown ── */
 .user-dropdown {
   position: absolute;
   bottom: calc(100% + 8px);
@@ -427,9 +430,7 @@ onUnmounted(() => {
   box-shadow: 0 2px 8px rgba(0,0,0,.15);
 }
 .ud-info { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
-.ud-greeting {
-  font-size: 13px; font-weight: 800; color: var(--green-dark);
-}
+.ud-greeting { font-size: 13px; font-weight: 800; color: var(--green-dark); }
 .ud-name {
   font-size: 13px; font-weight: 600; color: var(--text-primary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -456,21 +457,17 @@ onUnmounted(() => {
 .ud-logout { color: var(--red); }
 .ud-logout:hover { background: var(--red-light); }
 
-/* ── Transición dropdown ── */
 .user-menu-enter-active { transition: opacity .15s ease, transform .15s ease; }
 .user-menu-leave-active { transition: opacity .12s ease, transform .12s ease; }
 .user-menu-enter-from  { opacity: 0; transform: translateY(6px); }
 .user-menu-leave-to    { opacity: 0; transform: translateY(4px); }
 
-/* ── Mobile nav padding ── */
 .main-content.with-nav { padding-bottom: 80px; }
 
-/* ── Page transitions ── */
 .fade-enter-active, .fade-leave-active { transition: opacity .18s ease, transform .18s ease; }
 .fade-enter-from { opacity: 0; transform: translateY(6px); }
 .fade-leave-to   { opacity: 0; transform: translateY(-6px); }
 
-/* ── Shortcut feedback toast ── */
 .shortcut-toast {
   position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%);
   z-index: 8000; background: rgba(15,23,42,.88); color: white;

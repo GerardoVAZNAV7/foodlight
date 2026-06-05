@@ -36,13 +36,11 @@
       </div>
     </div>
 
-    <!-- Estado de carga -->
     <div v-if="loading" class="loading-card card">
       <div class="spinner-lg"></div>
       <p>Cargando pacientes...</p>
     </div>
 
-    <!-- Sin pacientes -->
     <div v-else-if="!pacientesFiltrados.length && !busqueda && !filtroCondicion" class="empty-card card">
       <div class="empty-icon">👥</div>
       <h3>Sin pacientes asignados</h3>
@@ -55,7 +53,6 @@
       <p>Prueba cambiando los filtros de búsqueda.</p>
     </div>
 
-    <!-- Grid de pacientes -->
     <div v-else class="pacientes-grid">
       <div
         v-for="p in pacientesFiltrados"
@@ -117,7 +114,6 @@
         </div>
         <div v-else class="pc-semaforo-empty">Sin entradas hoy</div>
 
-        <!-- Acciones rápidas -->
         <div class="pc-actions" @click.stop>
           <button class="pc-btn" @click="editarPaciente(p)" title="Editar perfil">✏️ Editar</button>
           <button class="pc-btn" @click="verReportePaciente(p)" title="Ver reporte">📊 Reporte</button>
@@ -181,10 +177,16 @@
 
           <!-- TAB: Editar -->
           <div v-if="modalTab === 'editar'" class="modal-body">
+            <!-- Indicador de carga de condiciones -->
+            <div v-if="cargandoCondiciones" class="conds-loading">
+              <div class="spinner-sm-verde"></div>
+              <span>Cargando padecimientos...</span>
+            </div>
+
             <div class="edit-grid">
               <div class="field">
                 <label>Nombre</label>
-                <input v-model="editForm.nombre" type="text" class="input" />
+                <input v-model="editForm.nombre" type="text" class="input" placeholder="Nombre completo" />
               </div>
               <div class="field">
                 <label>Fecha de nacimiento</label>
@@ -255,6 +257,7 @@ const filtroCondicion      = ref('')
 const modalPaciente        = ref(null)
 const modalTab             = ref('detalle')
 const guardandoEdit        = ref(false)
+const cargandoCondiciones  = ref(false)
 const todasCondiciones     = ref([])
 
 const editForm = reactive({
@@ -368,16 +371,19 @@ async function cargarPacientes() {
     const [{ data: conds }, { data: diario }] = await Promise.all([
       supabase.from('usuario_condiciones')
         .select('usuario_id, activa, condiciones_medicas(clave)')
-        .in('usuario_id', ids).eq('activa', true),
+        .in('usuario_id', ids),          // ← Quitamos .eq('activa', true) aquí para obtener todas
       supabase.from('diario_alimenticio')
         .select('*').in('user_id', ids).eq('fecha', hoy).order('created_at'),
     ])
 
+    // Construir mapa de condiciones: solo las activas
     const condPorPaciente = {}
     for (const c of conds || []) {
+      if (!c.activa) continue                   // ← filtramos inactivas aquí
       if (!condPorPaciente[c.usuario_id]) condPorPaciente[c.usuario_id] = {}
       condPorPaciente[c.usuario_id][c.condiciones_medicas.clave] = true
     }
+
     const diarioPorPaciente = {}
     for (const e of diario || []) {
       if (!diarioPorPaciente[e.user_id]) diarioPorPaciente[e.user_id] = []
@@ -421,20 +427,49 @@ function verPaciente(p) {
   modalTab.value = 'detalle'
 }
 
-function editarPaciente(p) {
+async function editarPaciente(p) {
   modalPaciente.value = p
   modalTab.value = 'editar'
+
+  // Datos básicos del formulario
   editForm.nombre = p.nombre || ''
   editForm.fecha_nacimiento = p.fecha_nacimiento || ''
   editForm.sexo = p.sexo || ''
   editForm.peso_kg = p.peso_kg || null
   editForm.talla_cm = p.talla_cm || null
-  // Cargar condiciones actuales
-  const conds = {}
-  for (const c of todasCondiciones.value) {
-    conds[c.clave] = !!p._condiciones?.[c.clave]
+
+  // Cargar condiciones con estado actual (fresh desde DB)
+  cargandoCondiciones.value = true
+  try {
+    const { data: condsActuales } = await supabase
+      .from('usuario_condiciones')
+      .select('condicion_id, activa, condiciones_medicas(clave)')
+      .eq('usuario_id', p.id)
+
+    // Construir mapa clave → activa
+    const condMap = {}
+    for (const c of condsActuales || []) {
+      condMap[c.condiciones_medicas.clave] = !!c.activa
+    }
+
+    // Inicializar todas las condiciones disponibles
+    const conds = {}
+    for (const c of todasCondiciones.value) {
+      // Si el paciente ya tiene registro de esa condición, usar ese valor
+      // Si no tiene registro, usar false por defecto
+      conds[c.clave] = condMap.hasOwnProperty(c.clave) ? condMap[c.clave] : false
+    }
+    editForm.condiciones = conds
+  } catch (e) {
+    // Fallback: usar condiciones del objeto en memoria
+    const conds = {}
+    for (const c of todasCondiciones.value) {
+      conds[c.clave] = !!p._condiciones?.[c.clave]
+    }
+    editForm.condiciones = conds
+  } finally {
+    cargandoCondiciones.value = false
   }
-  editForm.condiciones = conds
 }
 
 function verReportePaciente(p) {
@@ -448,19 +483,21 @@ async function guardarEdicion() {
   try {
     const uid = modalPaciente.value.id
 
-    // Actualizar perfil
-    const { error: pErr } = await supabase.from('profiles').upsert({
-      id: uid,
+    // ── Actualizar perfil del paciente
+    // La política RLS permite al especialista actualizar si especialista_id = auth.uid()
+    const { error: pErr } = await supabase.from('profiles').update({
       nombre: editForm.nombre.trim(),
       fecha_nacimiento: editForm.fecha_nacimiento || null,
       sexo: editForm.sexo || null,
       peso_kg: editForm.peso_kg || null,
       talla_cm: editForm.talla_cm || null,
       updated_at: new Date().toISOString(),
-    })
-    if (pErr) throw pErr
+    }).eq('id', uid)
 
-    // Actualizar condiciones
+    if (pErr) throw new Error(`Error al actualizar perfil: ${pErr.message}`)
+
+    // ── Actualizar condiciones médicas
+    // Usamos upsert con onConflict para cada condición activa/inactiva
     const hoy = new Date().toISOString().split('T')[0]
     const rows = todasCondiciones.value.map(cond => ({
       usuario_id: uid,
@@ -468,16 +505,18 @@ async function guardarEdicion() {
       activa: !!editForm.condiciones[cond.clave],
       fecha_inicio: hoy,
     }))
+
     const { error: ucErr } = await supabase
       .from('usuario_condiciones')
       .upsert(rows, { onConflict: 'usuario_id,condicion_id' })
-    if (ucErr) throw ucErr
+
+    if (ucErr) throw new Error(`Error al actualizar condiciones: ${ucErr.message}`)
 
     showToast('Cambios guardados ✅', 'success')
     modalPaciente.value = null
     cargarPacientes()
   } catch (e) {
-    showToast('Error: ' + e.message, 'error')
+    showToast(e.message, 'error')
   } finally {
     guardandoEdit.value = false
   }
@@ -504,7 +543,6 @@ onMounted(async () => {
 .ms-num { display: block; font-size: 24px; font-weight: 800; color: var(--text-primary); }
 .ms-lbl { font-size: 11px; color: var(--text-muted); font-weight: 600; }
 
-/* Filtros */
 .filters-bar { display: flex; flex-direction: column; gap: 10px; }
 .search-wrap .input { width: 100%; }
 .cond-filters { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -518,7 +556,6 @@ onMounted(async () => {
 .cond-pill:hover { border-color: var(--green); color: var(--green-dark); }
 .cond-pill.active { background: var(--green-light); border-color: var(--green); color: var(--green-dark); }
 
-/* Cards */
 .loading-card { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 40px; }
 .spinner-lg { width: 40px; height: 40px; border: 4px solid var(--gray-200); border-top-color: var(--green); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -606,6 +643,17 @@ onMounted(async () => {
 .er-tipo   { font-size: 11px; color: var(--text-muted); }
 .er-kcal   { font-size: 12px; font-weight: 700; color: var(--text-secondary); white-space: nowrap; }
 .modal-empty-hoy { font-size: 13px; color: var(--text-muted); text-align: center; padding: 16px; font-style: italic; }
+
+/* Carga de condiciones */
+.conds-loading {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0; font-size: 13px; color: var(--text-muted);
+}
+.spinner-sm-verde {
+  width: 16px; height: 16px;
+  border: 2px solid var(--gray-200); border-top-color: var(--green);
+  border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0;
+}
 
 /* Edit form */
 .edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
