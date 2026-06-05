@@ -242,14 +242,15 @@ const activeConditions = computed(() => {
 })
 const hasActiveConditions = computed(() => Object.keys(activeConditions.value).length > 0)
 
-const tmb = computed(() => {
+const tdee = computed(() => {
+  if (store.profile?.dieta?.kcal_objetivo) return store.profile.dieta.kcal_objetivo
   const { peso, estatura, edad, sexo } = store.profile || {}
-  if (!peso || !estatura || !edad || !sexo) return 1800
-  return sexo === 'M'
+  if (!peso || !estatura || !edad || !sexo) return 2000
+  const tmb = sexo === 'M'
     ? Math.round(10 * peso + 6.25 * estatura - 5 * edad + 5)
     : Math.round(10 * peso + 6.25 * estatura - 5 * edad - 161)
+  return Math.round(tmb * parseFloat(store.profile?.actividad || 1.375))
 })
-const tdee = computed(() => Math.round(tmb.value * parseFloat(store.profile?.actividad || 1.375)))
 
 const mealTypes = [
   { key: 'desayuno', label: 'Desayuno', icon: '🌅' },

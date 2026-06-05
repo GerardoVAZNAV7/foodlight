@@ -75,11 +75,12 @@ export const useUserStore = defineStore('user', () => {
 
   // ── Carga de perfil ─────────────────────────────────────────────────────────
   async function loadProfile(userId) {
-    const { data: p } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle()
+    const [pResult, dietasResult] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+      supabase.from('dietas').select('*').eq('paciente_id', userId).eq('activa', true).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    ])
+    const { data: p } = pResult
+    const dietaActiva = dietasResult.data
 
     const { data: conds } = await supabase
       .from('usuario_condiciones')
@@ -93,6 +94,10 @@ export const useUserStore = defineStore('user', () => {
     }
 
     if (p) {
+      // Auto-calcular obesidad/sobrepeso en base al IMC actual
+      const condicionesFinal = calcularCondicionesPeso(
+        parseFloat(p.peso_kg), parseFloat(p.talla_cm), condiciones
+      )
       profile.value = {
         nombre:           p.nombre || '',
         fecha_nacimiento: p.fecha_nacimiento || '',
@@ -105,7 +110,8 @@ export const useUserStore = defineStore('user', () => {
         especialista:     p.especialista === true,
         especialista_id:  p.especialista_id || null,
         // ────────
-        condiciones,
+        condiciones:      condicionesFinal,
+        dieta:            dietaActiva || null,
         _raw: p,
       }
     } else {
@@ -120,8 +126,21 @@ export const useUserStore = defineStore('user', () => {
         especialista:     false,
         especialista_id:  null,
         condiciones,
+        dieta:            null,
       }
     }
+  }
+
+  // ── Auto-calcular obesidad/sobrepeso desde IMC ──────────────────────────────
+  function calcularCondicionesPeso(pesoKg, tallaCm, base = {}) {
+    const c = { ...base }
+    if (pesoKg && tallaCm) {
+      const h = tallaCm / 100
+      const bmi = pesoKg / (h * h)
+      c.obesidad = bmi >= 30
+      c.sobrepeso = bmi >= 25 && bmi < 30
+    }
+    return c
   }
 
   // ── Guardar perfil ──────────────────────────────────────────────────────────
@@ -142,6 +161,11 @@ export const useUserStore = defineStore('user', () => {
         updated_at:       new Date().toISOString(),
       })
     if (pErr) throw new Error(pErr.message)
+
+    // Auto-calcular obesidad/sobrepeso desde IMC y sobreescribir condiciones
+    data.condiciones = calcularCondicionesPeso(
+      parseFloat(data.peso), parseFloat(data.estatura), data.condiciones || {}
+    )
 
     const { data: todasConds, error: cErr } = await supabase
       .from('condiciones_medicas')

@@ -77,7 +77,7 @@
           </div>
           <div class="pbs-item">
             <span class="pbs-val">{{ tdee }} kcal</span>
-            <span class="pbs-lbl">TDEE</span>
+            <span class="pbs-lbl">{{ pacienteInfo?._dieta?.kcal_objetivo ? 'Meta' : 'TDEE' }}</span>
           </div>
         </div>
         <div class="pb-export">
@@ -281,6 +281,7 @@ function condicionesActivas(p) {
 
 const tdee = computed(() => {
   const p = pacienteInfo.value
+  if (p?._dieta?.kcal_objetivo) return p._dieta.kcal_objetivo
   if (!p?.peso_kg || !p?.talla_cm || !p?._edad || !p?.sexo) return 2000
   const tmb = p.sexo === 'M'
     ? 10 * p.peso_kg + 6.25 * p.talla_cm - 5 * p._edad + 5
@@ -317,20 +318,19 @@ async function onCambioPaciente() {
 }
 
 async function cargarInfoPaciente() {
-  const { data: p } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', pacienteSeleccionado.value)
-    .maybeSingle()
-
-  const { data: conds } = await supabase
-    .from('usuario_condiciones')
-    .select('condicion_id, activa, condiciones_medicas(clave)')
-    .eq('usuario_id', pacienteSeleccionado.value)
-    .eq('activa', true)
+  const uid = pacienteSeleccionado.value
+  const [{ data: p }, { data: conds }, { data: dietasData }] = await Promise.all([
+    supabase.from('profiles').select('*').eq('id', uid).maybeSingle(),
+    supabase.from('usuario_condiciones')
+      .select('condicion_id, activa, condiciones_medicas(clave)')
+      .eq('usuario_id', uid).eq('activa', true),
+    supabase.from('dietas').select('*').eq('paciente_id', uid).eq('activa', true)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+  ])
 
   const condiciones = {}
   for (const c of conds || []) condiciones[c.condiciones_medicas.clave] = true
+  const dieta = dietasData || null
 
   let edad = null
   if (p?.fecha_nacimiento) {
@@ -340,7 +340,7 @@ async function cargarInfoPaciente() {
     if (new Date(hoyDate.getFullYear(), m - 1, d) > hoyDate) edad--
   }
 
-  pacienteInfo.value = { ...p, _condiciones: condiciones, _edad: edad }
+  pacienteInfo.value = { ...p, _condiciones: condiciones, _edad: edad, _dieta: dieta }
 }
 
 function destroyCharts() {

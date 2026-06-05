@@ -1,5 +1,8 @@
 <template>
   <aside class="sidebar-esp">
+    <transition name="shortcut-toast">
+      <div v-if="shortcutLabel" class="shortcut-toast">{{ shortcutLabel }}</div>
+    </transition>
     <div class="sidebar-brand">
       <span class="brand-icon">🚦</span>
       <span class="brand-name">FoodLight</span>
@@ -36,11 +39,13 @@
       <router-link to="/esp/alimentos" class="sidebar-link" active-class="active">
         <span class="sidebar-icon">🍎</span>
         <span class="sidebar-label">Alimentos</span>
+        <kbd class="shortcut-hint">Alt+A</kbd>
       </router-link>
 
       <router-link to="/esp/padecimientos" class="sidebar-link" active-class="active">
         <span class="sidebar-icon">🩺</span>
         <span class="sidebar-label">Padecimientos</span>
+        <kbd class="shortcut-hint">Alt+P</kbd>
       </router-link>
 
       <div class="nav-divider">MI CUENTA</div>
@@ -48,6 +53,7 @@
       <router-link to="/esp/perfil" class="sidebar-link" active-class="active">
         <span class="sidebar-icon">👤</span>
         <span class="sidebar-label">Mi perfil</span>
+        <kbd class="shortcut-hint">Alt+M</kbd>
       </router-link>
     </nav>
 
@@ -105,6 +111,36 @@ const router = useRouter()
 const isDarkMode = ref(false)
 const userMenuOpen = ref(false)
 const footerRef = ref(null)
+const shortcutLabel = ref('')
+let shortcutTimer = null
+
+const shortcutMap = {
+  KeyD: { path: '/dashboard', label: 'Dashboard' },
+  KeyR: { path: '/esp/reportes', label: 'Reportes' },
+  KeyI: { path: '/esp/dietas', label: 'Dietas' },
+  KeyE: { path: '/esp/recetas', label: 'Recetas' },
+  KeyA: { path: '/esp/alimentos', label: 'Alimentos' },
+  KeyP: { path: '/esp/padecimientos', label: 'Padecimientos' },
+  KeyM: { path: '/esp/perfil', label: 'Mi perfil' },
+}
+
+function showShortcut(label) {
+  shortcutLabel.value = label
+  clearTimeout(shortcutTimer)
+  shortcutTimer = setTimeout(() => { shortcutLabel.value = '' }, 1400)
+}
+
+function onKeydown(e) {
+  if (!e.altKey || !store.isLoggedIn || !store.isEspecialista) return
+  const tag = document.activeElement?.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+  const s = shortcutMap[e.code]
+  if (!s) return
+  e.preventDefault()
+  if (router.currentRoute.value.path === s.path) return
+  router.push(s.path)
+  showShortcut(s.label)
+}
 
 function onThemeChange() {
   isDarkMode.value = document.documentElement.hasAttribute('data-theme')
@@ -136,9 +172,14 @@ function onClickOutside(e) {
 
 onMounted(() => {
   document.addEventListener('mousedown', onClickOutside)
+  document.addEventListener('keydown', onKeydown)
   isDarkMode.value = document.documentElement.hasAttribute('data-theme')
 })
-onUnmounted(() => document.removeEventListener('mousedown', onClickOutside))
+onUnmounted(() => {
+  document.removeEventListener('mousedown', onClickOutside)
+  document.removeEventListener('keydown', onKeydown)
+  clearTimeout(shortcutTimer)
+})
 </script>
 
 <style scoped>
@@ -255,4 +296,17 @@ onUnmounted(() => document.removeEventListener('mousedown', onClickOutside))
 .user-menu-leave-active { transition: opacity .12s ease, transform .12s ease; }
 .user-menu-enter-from { opacity: 0; transform: translateY(6px); }
 .user-menu-leave-to { opacity: 0; transform: translateY(4px); }
+
+.shortcut-toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 9999;
+  padding: 10px 22px; border-radius: 99px;
+  background: var(--gray-900); color: white;
+  font-size: 13px; font-weight: 600; white-space: nowrap;
+  box-shadow: 0 4px 20px rgba(0,0,0,.3);
+  pointer-events: none; backdrop-filter: blur(8px);
+}
+.shortcut-toast-enter-active { transition: all .25s cubic-bezier(.34,1.56,.64,1); }
+.shortcut-toast-leave-active { transition: all .2s ease; }
+.shortcut-toast-enter-from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+.shortcut-toast-leave-to { opacity: 0; transform: translateX(-50%) translateY(-4px); }
 </style>

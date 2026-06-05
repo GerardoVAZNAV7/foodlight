@@ -228,6 +228,7 @@ const fechaFinFormateada = computed(() =>
 )
 
 const tdee = computed(() => {
+  if (store.profile?.dieta?.kcal_objetivo) return store.profile.dieta.kcal_objetivo
   const p = store.profile
   if (!p?.peso || !p?.estatura || !p?.edad || !p?.sexo) return 2000
   const tmb = p.sexo === 'M'

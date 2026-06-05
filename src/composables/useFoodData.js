@@ -85,8 +85,19 @@ export function useFoodData() {
       else                            flags.verde++
     }
 
+    if (condiciones.obesidad || condiciones.sobrepeso) {
+      const kcal   = parseFloat(alimento.energia_kcal)       || 0
+      const grasas = parseFloat(alimento.lipidos_g)          || 0
+      const azucar = parseFloat(alimento.azucar_g)           || 0
+      const fibra  = parseFloat(alimento.fibra_g)            || 0
+      // Basado en NOM-051 (sellos de advertencia)
+      if (kcal > 400 || grasas > 20 || azucar > 15) flags.rojo++
+      else if (kcal > 250 || grasas > 12 || azucar > 8 || (fibra > 0 && fibra < 3)) flags.amarillo++
+      else flags.verde++
+    }
+
     // Sin condiciones → clasificación general por fibra/kcal
-    if (!condiciones.celiaquía && !condiciones.hipertension && !condiciones.diabetes_t2) {
+    if (!condiciones.celiaquía && !condiciones.hipertension && !condiciones.diabetes_t2 && !condiciones.obesidad && !condiciones.sobrepeso) {
       const fibra = parseFloat(alimento.fibra_g)      || 0
       const kcal  = parseFloat(alimento.energia_kcal) || 0
       if (fibra > 3)  return 'verde'

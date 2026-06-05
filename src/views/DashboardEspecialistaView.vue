@@ -90,7 +90,7 @@
             <span class="pcm-val" :style="{ color: colorKcalHoy(p) }">
               {{ p._kcalHoy ?? '—' }}
             </span>
-            <span class="pcm-lbl">kcal hoy</span>
+            <span class="pcm-lbl">{{ p._dieta?.kcal_objetivo ? 'Meta: ' + p._dieta.kcal_objetivo : 'kcal hoy' }}</span>
           </div>
         </div>
 
@@ -270,12 +270,16 @@ const condFiltros = [
   { key: 'hipertension', label: 'Hipertensión', icon: '💊' },
   { key: 'diabetes_t2',  label: 'Diabetes',     icon: '🩸' },
   { key: 'celiaquía',    label: 'Celiaquía',     icon: '🌾' },
+  { key: 'obesidad',     label: 'Obesidad',     icon: '⚖️' },
+  { key: 'sobrepeso',    label: 'Sobrepeso',    icon: '⚖️' },
 ]
 
 const COND_META = {
   celiaquía:    { label: 'Celiaquía',     icon: '🌾' },
   hipertension: { label: 'Hipertensión',  icon: '💊' },
   diabetes_t2:  { label: 'Diabetes',      icon: '🩸' },
+  obesidad:     { label: 'Obesidad',      icon: '⚖️' },
+  sobrepeso:    { label: 'Sobrepeso',     icon: '⚖️' },
 }
 
 const nombreEspecialista = computed(() =>
@@ -322,7 +326,8 @@ function tipoLabel(t) {
 }
 
 const TDEE_FALLBACK = 2000
-function tdeeDeP(p) {
+function metaDeP(p) {
+  if (p._dieta?.kcal_objetivo) return p._dieta.kcal_objetivo
   if (!p.peso_kg || !p.talla_cm || !p.edad || !p.sexo) return TDEE_FALLBACK
   const tmb = p.sexo === 'M'
     ? 10 * p.peso_kg + 6.25 * p.talla_cm - 5 * p.edad + 5
@@ -332,9 +337,9 @@ function tdeeDeP(p) {
 function colorKcalHoy(p) {
   const k = p._kcalHoy
   if (!k) return 'var(--gray-400)'
-  const tdee = tdeeDeP(p)
-  if (k > tdee * 1.1) return 'var(--red)'
-  if (k > tdee * 0.9) return 'var(--green)'
+  const meta = metaDeP(p)
+  if (k > meta * 1.1) return 'var(--red)'
+  if (k > meta * 0.9) return 'var(--green)'
   return 'var(--yellow)'
 }
 
@@ -366,14 +371,19 @@ async function cargarPacientes() {
     if (!profs?.length) { pacientes.value = []; return }
 
     const ids = profs.map(p => p.id)
-    const hoy = new Date().toISOString().split('T')[0]
+    // Obtenemos la fecha local en formato YYYY-MM-DD respetando tu zona horaria
+    const fecha = new Date()
+    const hoy = fecha.getFullYear() + '-' + 
+            String(fecha.getMonth() + 1).padStart(2, '0') + '-' + 
+            String(fecha.getDate()).padStart(2, '0')
 
-    const [{ data: conds }, { data: diario }] = await Promise.all([
+    const [{ data: conds }, { data: diario }, { data: dietasData }] = await Promise.all([
       supabase.from('usuario_condiciones')
         .select('usuario_id, activa, condiciones_medicas(clave)')
-        .in('usuario_id', ids),          // ← Quitamos .eq('activa', true) aquí para obtener todas
+        .in('usuario_id', ids),
       supabase.from('diario_alimenticio')
         .select('*').in('user_id', ids).eq('fecha', hoy).order('created_at'),
+      supabase.from('dietas').select('*').in('paciente_id', ids).eq('activa', true).order('created_at', { ascending: false }),
     ])
 
     // Construir mapa de condiciones: solo las activas
@@ -388,6 +398,13 @@ async function cargarPacientes() {
     for (const e of diario || []) {
       if (!diarioPorPaciente[e.user_id]) diarioPorPaciente[e.user_id] = []
       diarioPorPaciente[e.user_id].push(e)
+    }
+
+    const dietaPorPaciente = {}
+    for (const d of dietasData || []) {
+      if (d.paciente_id && !dietaPorPaciente[d.paciente_id]) {
+        dietaPorPaciente[d.paciente_id] = d
+      }
     }
 
     pacientes.value = profs.map(p => {
@@ -412,6 +429,7 @@ async function cargarPacientes() {
         _kcalHoy: entradas.length ? Math.round(kcalHoy) : null,
         _registroHoy: entradas.length > 0,
         _semaforo: entradas.length ? semaforo : null,
+        _dieta: dietaPorPaciente[p.id] || null,
       }
     })
   } catch (e) {
@@ -495,6 +513,16 @@ async function guardarEdicion() {
     }).eq('id', uid)
 
     if (pErr) throw new Error(`Error al actualizar perfil: ${pErr.message}`)
+
+    // Auto-calcular obesidad/sobrepeso desde IMC
+    const peso = parseFloat(editForm.peso_kg)
+    const talla = parseFloat(editForm.talla_cm)
+    if (peso && talla) {
+      const h = talla / 100
+      const bmi = peso / (h * h)
+      editForm.condiciones.obesidad = bmi >= 30
+      editForm.condiciones.sobrepeso = bmi >= 25 && bmi < 30
+    }
 
     // ── Actualizar condiciones médicas
     // Usamos upsert con onConflict para cada condición activa/inactiva
@@ -587,7 +615,9 @@ onMounted(async () => {
 .cond-badge.hipertension { background: var(--blue-light); color: var(--blue); }
 .cond-badge.diabetes_t2  { background: var(--red-light);  color: var(--red); }
 .cond-badge.celiaquía    { background: var(--yellow-light); color: #7A5800; }
-.cond-badge:not(.hipertension):not(.diabetes_t2):not(.celiaquía) { background: var(--gray-100); color: var(--gray-600); }
+.cond-badge.obesidad     { background: #FFF3E0; color: #E65100; }
+.cond-badge.sobrepeso    { background: #FFF3E0; color: #E65100; }
+.cond-badge:not(.hipertension):not(.diabetes_t2):not(.celiaquía):not(.obesidad):not(.sobrepeso) { background: var(--gray-100); color: var(--gray-600); }
 
 .pc-semaforo { display: flex; align-items: center; gap: 8px; }
 .pcs-bar { flex: 1; height: 8px; border-radius: 99px; overflow: hidden; display: flex; gap: 2px; background: var(--gray-100); }

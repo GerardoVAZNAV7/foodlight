@@ -189,7 +189,7 @@ const semaforos = [
   { key: 'rojo', label: 'Evitar', desc: 'Pueden afectar negativamente tu salud según tus padecimientos.' },
 ]
 
-const condLabels = { celiaquía: '🌾 Celiaquía', hipertension: '💊 Hipertensión', diabetes_t2: '🩸 Diabetes tipo 2' }
+const condLabels = { celiaquía: '🌾 Celiaquía', hipertension: '💊 Hipertensión', diabetes_t2: '🩸 Diabetes tipo 2', obesidad: '⚖️ Obesidad', sobrepeso: '⚖️ Sobrepeso' }
 
 const activeConditions = computed(() => {
   const c = store.profile?.condiciones || {}

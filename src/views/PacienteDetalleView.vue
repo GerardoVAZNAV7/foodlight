@@ -227,6 +227,8 @@ const COND_META = {
   celiaquía:    { label: 'Celiaquía',    icon: '🌾' },
   hipertension: { label: 'Hipertensión', icon: '💊' },
   diabetes_t2:  { label: 'Diabetes',     icon: '🩸' },
+  obesidad:     { label: 'Obesidad',     icon: '⚖️' },
+  sobrepeso:    { label: 'Sobrepeso',    icon: '⚖️' },
 }
 
 const AVATAR_COLORS = ['#00C896','#4361EE','#FF4757','#FFB800','#9B59B6','#1ABC9C','#E67E22']
@@ -269,6 +271,8 @@ const imcLabel = computed(() => {
 
 const tdee = computed(() => {
   const p = paciente.value
+  const dietaActiva = dietasPaciente.value.find(d => d.activa)
+  if (dietaActiva?.kcal_objetivo) return dietaActiva.kcal_objetivo
   if (!p?.peso_kg || !p?.talla_cm || !p?._edad || !p?.sexo) return 2000
   const tmb = p.sexo === 'M'
     ? 10 * p.peso_kg + 6.25 * p.talla_cm - 5 * p._edad + 5
@@ -396,6 +400,15 @@ async function guardarCondiciones() {
   guardandoConds.value = true
   showToast('Guardando padecimientos...', 'loading')
   try {
+    // Auto-calcular obesidad/sobrepeso desde IMC
+    const peso = parseFloat(editForm.peso_kg)
+    const talla = parseFloat(editForm.talla_cm)
+    if (peso && talla) {
+      const h = talla / 100
+      const bmi = peso / (h * h)
+      editForm.condiciones.obesidad = bmi >= 30
+      editForm.condiciones.sobrepeso = bmi >= 25 && bmi < 30
+    }
     const hoyStr = new Date().toISOString().split('T')[0]
     const rows = todasCondiciones.value.map(cond => ({
       usuario_id: route.params.id,
@@ -440,6 +453,8 @@ onMounted(cargar)
 .cond-badge.hipertension { background: var(--blue-light); color: var(--blue); }
 .cond-badge.diabetes_t2  { background: var(--red-light);  color: var(--red); }
 .cond-badge.celiaquía    { background: var(--yellow-light); color: #7A5800; }
+.cond-badge.obesidad     { background: #FFF3E0; color: #E65100; }
+.cond-badge.sobrepeso    { background: #FFF3E0; color: #E65100; }
 .cond-badge.none         { background: var(--gray-100); color: var(--gray-500); }
 .ph-stats { display: flex; gap: 14px; }
 .phs-item { text-align: center; }

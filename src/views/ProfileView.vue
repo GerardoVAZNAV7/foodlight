@@ -41,7 +41,8 @@
         <span>🔥</span>
         <div>
           <h4>Requerimiento calórico</h4>
-          <p>Estimado con fórmula Mifflin-St Jeor · {{ store.profile.edad }} años</p>
+          <p v-if="store.profile.dieta">Meta de dieta: {{ store.profile.dieta.nombre }}</p>
+          <p v-else>Estimado con fórmula Mifflin-St Jeor · {{ store.profile.edad }} años</p>
         </div>
       </div>
       <div class="caloric-values">
@@ -52,8 +53,13 @@
         <div class="caloric-divider"></div>
         <div class="caloric-item">
           <span class="caloric-num" style="color:var(--green)">{{ tdee }}</span>
-          <span class="caloric-label">kcal/día total</span>
+          <span class="caloric-label">{{ store.profile.dieta ? 'Meta dieta' : 'kcal/día total' }}</span>
         </div>
+      </div>
+      <div v-if="store.profile.dieta" class="caloric-diet-macros">
+        <span v-if="store.profile.dieta.prot_g">🥩 {{ store.profile.dieta.prot_g }}g proteína</span>
+        <span v-if="store.profile.dieta.carbs_g">🌾 {{ store.profile.dieta.carbs_g }}g carbohidratos</span>
+        <span v-if="store.profile.dieta.grasas_g">🧈 {{ store.profile.dieta.grasas_g }}g grasas</span>
       </div>
     </div>
 
@@ -147,6 +153,23 @@
           </div>
         </div>
 
+        <!-- Condiciones auto-calculadas por IMC -->
+        <div class="auto-conds-section">
+          <h4 class="section-subtitle">⚖️ Condiciones por IMC</h4>
+          <p class="section-hint">Calculadas automáticamente según tu peso y estatura.</p>
+          <div class="disease-grid">
+            <div v-for="ac in autoConditions" :key="ac.key" class="disease-chip auto"
+              :class="{ selected: ac.active }">
+              <span class="disease-icon">{{ ac.icon }}</span>
+              <span class="disease-name">{{ ac.label }}</span>
+              <span class="auto-badge" :class="ac.active ? 'on' : 'off'">
+                {{ ac.active ? ac.label : '—' }}
+              </span>
+              <span class="auto-lock">🔒</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Indicador de cambios sin guardar -->
         <div v-if="isDirty" class="unsaved-bar" role="status">
           <span>💡 Tienes cambios sin guardar</span>
@@ -164,24 +187,68 @@
       <p>✅ Perfil guardado. Consulta tu semáforo de alimentos personalizado.</p>
       <router-link to="/semaforo" class="btn btn-outline btn-full">Ver semáforo 🚦</router-link>
     </div>
+
+    <!-- Dietas asignadas -->
+    <div v-if="store.hasProfile" class="dietas-section card">
+      <h3 class="section-title"><span>🥗</span> Dietas asignadas</h3>
+      <div v-if="loadingDietas" class="loading-dietas">
+        <span class="spinner-sm"></span> Cargando dietas...
+      </div>
+      <div v-else-if="!dietas.length" class="empty-dietas">
+        <p>No tienes dietas asignadas por el momento.</p>
+      </div>
+      <div v-else class="dietas-list">
+        <div v-for="d in dietas" :key="d.id" class="dieta-item">
+          <div class="di-header">
+            <span class="di-icon">🥗</span>
+            <div class="di-info">
+              <h4>{{ d.nombre }}</h4>
+              <span class="di-badge" :class="d.activa ? 'activa' : 'inactiva'">{{ d.activa ? 'Activa' : 'Inactiva' }}</span>
+            </div>
+          </div>
+          <p v-if="d.descripcion" class="di-desc">{{ d.descripcion }}</p>
+          <div class="di-stats">
+            <span>🔥 {{ d.kcal_objetivo ?? '—' }} kcal/día</span>
+            <span>📅 {{ d.duracion_dias ?? '—' }} días</span>
+          </div>
+          <div v-if="d.prot_g || d.carbs_g || d.grasas_g" class="di-macros">
+            <span v-if="d.prot_g">🥩 {{ d.prot_g }}g prot</span>
+            <span v-if="d.carbs_g">🌾 {{ d.carbs_g }}g carbs</span>
+            <span v-if="d.grasas_g">🧈 {{ d.grasas_g }}g grasas</span>
+          </div>
+          <p v-if="d.notas" class="di-notas">📝 {{ d.notas }}</p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { reactive, ref, computed, watch } from 'vue'
+import { reactive, ref, computed, watch, onMounted } from 'vue'
 import { useUserStore } from '@/stores/userStore'
+import { supabase } from '@/services/supabase'
 import StatusToast from '@/components/StatusToast.vue'
 
 const store = useUserStore()
 const saving = ref(false)
 const isDirty = ref(false)
 const toast = reactive({ show: false, message: '', type: 'success' })
+const dietas = ref([])
+const loadingDietas = ref(false)
 
 const diseases = [
   { key: 'celiaquía',    label: 'Celiaquía',    icon: '🌾' },
   { key: 'hipertension', label: 'Hipertensión', icon: '💊' },
   { key: 'diabetes_t2',  label: 'Diabetes',     icon: '🩸' },
 ]
+
+const autoConditions = computed(() => {
+  const c = store.profile?.condiciones || {}
+  return [
+    { key: 'obesidad',  label: 'Obesidad',  icon: '⚖️', active: !!c.obesidad },
+    { key: 'sobrepeso', label: 'Sobrepeso', icon: '⚖️', active: !!c.sobrepeso },
+  ]
+})
 
 // ── Nombre desde profiles (con fallback) ─────────────────────────────────────
 const nombreCompleto = computed(() => {
@@ -240,9 +307,14 @@ watch(() => store.profile, (p) => {
   form.condiciones.hipertension = p.condiciones?.hipertension || false
   form.condiciones.diabetes_t2  = p.condiciones?.diabetes_t2  || false
   isDirty.value = false
+  cargarDietas()
 }, { immediate: true })
 
 watch(form, () => { isDirty.value = true }, { deep: true })
+
+onMounted(() => {
+  if (store.authUser?.id) cargarDietas()
+})
 
 // ── Edad calculada en tiempo real ────────────────────────────────────────────
 const edadCalculada = computed(() => {
@@ -297,6 +369,7 @@ const tdeePreview = computed(() => {
 
 // Para la tarjeta de resumen (usa datos guardados del store)
 const tmb = computed(() => {
+  if (store.profile?.dieta?.kcal_objetivo) return '—'
   const { peso, estatura, edad, sexo } = store.profile || {}
   if (!peso || !estatura || !edad || !sexo) return '—'
   const val = sexo === 'M'
@@ -305,6 +378,7 @@ const tmb = computed(() => {
   return Math.round(val)
 })
 const tdee = computed(() => {
+  if (store.profile?.dieta?.kcal_objetivo) return store.profile.dieta.kcal_objetivo
   if (tmb.value === '—') return '—'
   return Math.round(tmb.value * parseFloat(store.profile?.actividad || 1.375))
 })
@@ -328,6 +402,18 @@ function v(field) {
 function showToast(msg, type) {
   toast.show = false
   setTimeout(() => { toast.message = msg; toast.type = type; toast.show = true }, 50)
+}
+
+async function cargarDietas() {
+  if (!store.authUser?.id) return
+  loadingDietas.value = true
+  const { data } = await supabase
+    .from('dietas')
+    .select('*')
+    .eq('paciente_id', store.authUser.id)
+    .order('created_at', { ascending: false })
+  dietas.value = data || []
+  loadingDietas.value = false
 }
 
 async function saveProfile() {
@@ -432,6 +518,7 @@ async function saveProfile() {
 }
 
 .diseases-section { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px; }
+.auto-conds-section { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px; padding-top: 8px; border-top: 1px solid var(--gray-200); }
 .disease-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .disease-chip {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
@@ -442,11 +529,22 @@ async function saveProfile() {
 }
 .disease-chip:hover { border-color: var(--green); background: var(--green-light); }
 .disease-chip.selected { border-color: var(--green); background: var(--green-light); }
+.disease-chip.auto { cursor: default; opacity: .85; }
+.disease-chip.auto.selected { border-color: var(--gray-300); background: var(--gray-100); }
 .disease-icon { font-size: 24px; }
 .disease-name { font-size: 12px; font-weight: 600; color: var(--gray-700); }
 .check-mark {
   position: absolute; top: 6px; right: 8px;
   font-size: 12px; color: var(--green); font-weight: 700;
+}
+.auto-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px;
+}
+.auto-badge.on  { background: var(--green-light); color: var(--green-dark); }
+.auto-badge.off { background: var(--gray-100); color: var(--gray-400); }
+.auto-lock {
+  position: absolute; top: 6px; right: 8px;
+  font-size: 10px; opacity: .5;
 }
 
 .unsaved-bar {
@@ -460,6 +558,25 @@ async function saveProfile() {
 .cta-card p { font-size: 14px; color: var(--gray-600); }
 
 .save-btn { margin-top: 8px; }
+
+.dietas-section { display: flex; flex-direction: column; gap: 12px; }
+.loading-dietas { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--gray-500); }
+.empty-dietas { text-align: center; padding: 24px; color: var(--gray-500); font-size: 14px; }
+.dietas-list { display: flex; flex-direction: column; gap: 12px; }
+.dieta-item { display: flex; flex-direction: column; gap: 8px; padding: 14px; background: var(--gray-50); border-radius: var(--radius-md); }
+.di-header { display: flex; align-items: center; gap: 12px; }
+.di-icon { font-size: 24px; }
+.di-info { display: flex; align-items: center; gap: 10px; flex: 1; }
+.di-info h4 { font-size: 15px; font-weight: 700; color: var(--gray-900); }
+.di-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
+.di-badge.activa   { background: var(--green-light); color: var(--green-dark); }
+.di-badge.inactiva { background: var(--gray-100); color: var(--gray-400); }
+.di-desc  { font-size: 13px; color: var(--gray-600); }
+.di-stats { display: flex; gap: 14px; font-size: 12px; font-weight: 600; color: var(--gray-500); }
+.di-macros { display: flex; gap: 12px; font-size: 12px; font-weight: 600; color: var(--gray-500); }
+.di-notas { font-size: 12px; color: var(--gray-500); background: white; border-radius: var(--radius-sm); padding: 8px 12px; }
+
+.caloric-diet-macros { display: flex; gap: 14px; font-size: 12px; font-weight: 600; color: var(--gray-500); background: var(--gray-50); border-radius: var(--radius-md); padding: 10px 16px; justify-content: center; }
 
 .spinner-sm {
   width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4);

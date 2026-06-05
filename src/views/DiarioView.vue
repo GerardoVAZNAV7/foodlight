@@ -28,7 +28,7 @@
       <div class="resumen-card card">
         <div class="resumen-header">
           <span class="resumen-titulo">Resumen del día</span>
-          <span class="tdee-ref">Meta: <strong>{{ tdee }} kcal</strong></span>
+          <span class="tdee-ref">Meta: <strong>{{ tdee }} kcal</strong><span v-if="store.profile?.dieta" class="tdee-dieta"> · {{ store.profile.dieta.nombre }}</span></span>
         </div>
 
         <div class="kcal-section">
@@ -60,6 +60,14 @@
               <span class="extra-val">{{ totales[ex.key] }}{{ ex.unit }}</span>
               <span class="extra-lbl">{{ ex.label }}</span>
             </div>
+          </div>
+        </div>
+
+        <!-- Alertas de metas -->
+        <div v-if="alertas.length" class="alertas-section">
+          <div v-for="alerta in alertas" :key="alerta.key" class="alerta-item" :class="'alerta-' + alerta.tipo">
+            <span class="alerta-icon">{{ alerta.icon }}</span>
+            <span class="alerta-msg">{{ alerta.mensaje }}</span>
           </div>
         </div>
 
@@ -102,7 +110,7 @@
                 {{ entrada.origen === 'receta' ? entrada.receta_nombre : entrada.alimento_nombre }}
               </span>
               <span class="entrada-meta">
-                <template v-if="entrada.origen === 'alimento'">{{ entrada.cantidad_g }}g</template>
+                <template v-if="entrada.origen === 'alimento'">{{ entrada.cantidad_g }} {{ getUnidad(entrada.alimento_nombre) }}</template>
                 <template v-else>{{ entrada.receta_porciones }} porción(es)</template>
               </span>
             </div>
@@ -155,8 +163,8 @@
 
             <div v-if="modal.seleccionado" class="cantidad-row">
               <div class="field">
-                <label>Cantidad (g)</label>
-                <input v-model.number="modal.cantidad" type="number" min="1" max="2000" class="input" />
+                <label>Cantidad ({{ modal.seleccionado.unidad || 'g' }})</label>
+                <input v-model.number="modal.cantidad" type="number" min="0.1" step="any" class="input" />
               </div>
               <div class="preview-kcal">
                 <span>≈</span><strong>{{ kcalPreview }}</strong><small>kcal</small>
@@ -265,6 +273,25 @@
         </div>
       </div>
     </transition>
+
+    <!-- ══ MODAL DE CONFIRMACIÓN ══ -->
+    <transition name="modal">
+      <div v-if="confirmModal.show" class="modal-overlay" @click.self="cancelarConfirmacion">
+        <div class="modal-card modal-confirm" :class="'confirm-' + confirmModal.tipo">
+          <div class="confirm-icon-wrap">
+            <span class="confirm-icon">{{ confirmModal.tipo === 'danger' ? '🚨' : '⚠️' }}</span>
+          </div>
+          <h3 class="confirm-title">{{ confirmModal.tipo === 'danger' ? '¡Alerta!' : 'Aviso' }}</h3>
+          <p class="confirm-msg">{{ confirmModal.mensaje }}</p>
+          <div class="confirm-btns">
+            <button class="btn btn-secondary" @click="cancelarConfirmacion">{{ confirmModal.cancelText }}</button>
+            <button class="btn" :class="confirmModal.tipo === 'danger' ? 'btn-danger' : 'btn-primary'" @click="confirmarAccion">
+              {{ confirmModal.confirmText }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -308,8 +335,10 @@ const fechaFormateada = computed(() =>
     .toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
 )
 
-// ── TDEE ───────────────────────────────────────────────────────────────────
+// ── TDEE / Meta de dieta ────────────────────────────────────────────────────
 const tdee = computed(() => {
+  const dieta = store.profile?.dieta
+  if (dieta?.kcal_objetivo) return dieta.kcal_objetivo
   const p = store.profile
   if (!p?.peso || !p?.estatura || !p?.edad || !p?.sexo) return 2000
   const tmb = p.sexo === 'M'
@@ -324,6 +353,22 @@ const userId      = computed(() => store.authUser?.id)
 function normalizar(str) {
   if (!str) return ''
   return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+}
+function parseCantidadSugerida(str) {
+  if (str == null) return NaN
+  const s = String(str).trim()
+  if (!s) return NaN
+  const parts = s.split('/')
+  if (parts.length === 2) {
+    const num = parseFloat(parts[0])
+    const den = parseFloat(parts[1])
+    if (den) return num / den
+  }
+  return parseFloat(s)
+}
+function getUnidad(nombre) {
+  const a = alimentoMap.value.get(normalizar(nombre))
+  return a?.unidad || 'g'
 }
 
 // ── Cargar mapa de alimentos ────────────────────────────────────────────────
@@ -433,29 +478,112 @@ const restoKcal = computed(() => {
   return diff >= 0 ? `${diff} kcal restantes` : `${Math.abs(diff)} kcal de exceso`
 })
 
-const macros = [
-  { key: 'prot',   label: 'Proteína', color: '#4361EE', max: 150 },
-  { key: 'carbs',  label: 'Carbos',   color: '#FFB800', max: 300 },
-  { key: 'grasas', label: 'Grasas',   color: '#FF4757', max: 80  },
-].map(m => ({
-  ...m,
-  pct: computed(() => Math.min(100, Math.round((totales.value[m.key] / m.max) * 100))),
-}))
+const macros = computed(() => {
+  const dieta = store.profile?.dieta
+  const defs = [
+    { key: 'prot',   label: 'Proteína', color: '#4361EE', max: dieta?.prot_g   || 150 },
+    { key: 'carbs',  label: 'Carbos',   color: '#FFB800', max: dieta?.carbs_g  || 300 },
+    { key: 'grasas', label: 'Grasas',   color: '#FF4757', max: dieta?.grasas_g || 80  },
+  ]
+  return defs.map(m => ({
+    ...m,
+    pct: computed(() => Math.min(100, Math.round((totales.value[m.key] / m.max) * 100))),
+  }))
+})
 
 const metricasExtra = computed(() => {
   const ex = []
   if (condiciones.value.hipertension) {
     const sodio = totales.value.sodio
     ex.push({ key: 'sodio', icon: '🧂', label: 'Sodio', unit: 'mg',
-      level: sodio > 2300 ? 'nivel-rojo' : sodio > 1500 ? 'nivel-amarillo' : 'nivel-verde' })
+      level: sodio > 2000 ? 'nivel-rojo' : sodio > 1500 ? 'nivel-amarillo' : 'nivel-verde' })
   }
   if (condiciones.value.diabetes_t2) {
     const azucar = totales.value.azucar
     ex.push({ key: 'azucar', icon: '🩸', label: 'Azúcar', unit: 'g',
       level: azucar > 50 ? 'nivel-rojo' : azucar > 25 ? 'nivel-amarillo' : 'nivel-verde' })
   }
+  if (condiciones.value.obesidad || condiciones.value.sobrepeso) {
+    const grasas = totales.value.grasas
+    ex.push({ key: 'grasas', icon: '🧈', label: 'Grasas', unit: 'g',
+      level: grasas > 65 ? 'nivel-rojo' : grasas > 45 ? 'nivel-amarillo' : 'nivel-verde' })
+  }
   return ex
 })
+
+// ── Alertas de metas ──────────────────────────────────────────────────────
+const alertas = computed(() => {
+  const arr = []
+  const pct = pctKcal.value
+  if (pct >= 100) {
+    arr.push({ key: 'kcal', icon: '🔥', tipo: pct > 110 ? 'peligro' : 'aviso', mensaje: pct > 110 ? '¡Has excedido tu meta de calorías!' : '¡Has alcanzado tu meta de calorías del día!' })
+  } else if (pct >= 90) {
+    arr.push({ key: 'kcal', icon: '🔥', tipo: 'aviso', mensaje: 'Estás cerca de alcanzar tu meta de calorías (90%).' })
+  }
+  for (const m of macros.value) {
+    const val = totales.value[m.key]
+    const meta = m.max
+    if (val >= meta) {
+      arr.push({ key: m.key, icon: m.key === 'prot' ? '🥩' : m.key === 'carbs' ? '🌾' : '🧈', tipo: 'aviso', mensaje: `Meta de ${m.label} alcanzada (${val}g / ${meta}g).` })
+    }
+  }
+  if (condiciones.value.hipertension) {
+    const sodio = totales.value.sodio
+    if (sodio > 2000) {
+      arr.push({ key: 'sodio-rojo', icon: '🧂', tipo: 'peligro', mensaje: `Alto consumo de sodio (${sodio}mg). Límite recomendado por NOM-030: 2000 mg/día.` })
+    } else if (sodio > 1500) {
+      arr.push({ key: 'sodio-amarillo', icon: '🧂', tipo: 'aviso', mensaje: `Consumo moderado de sodio (${sodio}mg). Procura no exceder 2000 mg/día.` })
+    }
+  }
+  if (condiciones.value.diabetes_t2) {
+    const azucar = totales.value.azucar
+    if (azucar > 50) {
+      arr.push({ key: 'azucar-rojo', icon: '🩸', tipo: 'peligro', mensaje: `Alto consumo de azúcar (${azucar}g). Límite recomendado para diabetes: < 50 g/día (NOM-015).` })
+    } else if (azucar > 25) {
+      arr.push({ key: 'azucar-amarillo', icon: '🩸', tipo: 'aviso', mensaje: `Consumo moderado de azúcar (${azucar}g). Procura no exceder 50 g/día.` })
+    }
+  }
+  if (condiciones.value.obesidad || condiciones.value.sobrepeso) {
+    const grasas = totales.value.grasas
+    if (grasas > 65) {
+      arr.push({ key: 'grasas-rojo', icon: '🧈', tipo: 'peligro', mensaje: `Alto consumo de grasas (${grasas}g). Recomendación: < 65 g/día (NOM-051).` })
+    } else if (grasas > 45) {
+      arr.push({ key: 'grasas-amarillo', icon: '🧈', tipo: 'aviso', mensaje: `Consumo moderado de grasas (${grasas}g). Procura no exceder 65 g/día.` })
+    }
+  }
+  return arr
+})
+
+// ── Confirmación para alimentos rojos / gluten ────────────────────────────
+const confirmModal = reactive({
+  show: false, tipo: 'warning', mensaje: '',
+  confirmText: 'Confirmar', cancelText: 'Cancelar',
+  onConfirm: null, onCancel: null,
+})
+let accionPendiente = null
+
+function cancelarConfirmacion() {
+  confirmModal.show = false
+  if (confirmModal.onCancel) confirmModal.onCancel()
+  accionPendiente = null
+}
+
+function confirmarAccion() {
+  confirmModal.show = false
+  if (confirmModal.onConfirm) confirmModal.onConfirm()
+  accionPendiente = null
+}
+
+function mostrarConfirmacion(opts) {
+  Object.assign(confirmModal, {
+    show: true, tipo: opts.tipo || 'warning',
+    mensaje: opts.mensaje || '',
+    confirmText: opts.confirmText || 'Confirmar',
+    cancelText: opts.cancelText || 'Cancelar',
+    onConfirm: opts.onConfirm || null,
+    onCancel: opts.onCancel || null,
+  })
+}
 
 // ── Color semáforo alimento ─────────────────────────────────────────────────
 function colorAlimento(a) {
@@ -610,7 +738,8 @@ async function buscarRecetas() {
 
 function seleccionarAlimento(a) {
   modal.seleccionado = a
-  modal.cantidad = parseFloat(a.peso_neto_g) || 100
+  const ref = parseCantidadSugerida(a.cantidad_sugerida)
+  modal.cantidad = isNaN(ref) ? (parseFloat(a.peso_neto_g) || 100) : ref
 }
 function seleccionarReceta(r) {
   modal.seleccionado = r
@@ -620,8 +749,10 @@ function seleccionarReceta(r) {
 const kcalPreview = computed(() => {
   if (!modal.seleccionado || modal.origen !== 'alimento') return 0
   const kcalP = parseFloat(modal.seleccionado.energia_kcal) || 0
-  const pesoP = parseFloat(modal.seleccionado.peso_neto_g)  || 100
-  return Math.round((kcalP / pesoP) * (modal.cantidad || 0))
+  const ref = parseCantidadSugerida(modal.seleccionado.cantidad_sugerida)
+  const pesoP = parseFloat(modal.seleccionado.peso_neto_g) || 100
+  const base = isNaN(ref) || !ref ? pesoP : ref
+  return Math.round((kcalP / base) * (modal.cantidad || 0))
 })
 
 const kcalPreviewReceta = computed(() => {
@@ -645,6 +776,84 @@ async function cargarEntradas() {
 
 async function guardarEntrada() {
   if (!modal.seleccionado || !userId.value) return
+
+  if (modal.origen === 'alimento' && condiciones.value.celiaquía) {
+    const a = modal.seleccionado
+    const tieneGluten = a.contiene_gluten === true || a.contiene_gluten === 't'
+    if (tieneGluten) {
+      accionPendiente = 'guardar'
+      mostrarConfirmacion({
+        tipo: 'danger',
+        mensaje: '🚨 ¡ALERTA! Este producto contiene GLUTEN. Según tu perfil de celiaquía debes evitarlo. ¿Confirmas su consumo?',
+        confirmText: 'Sí, consumir',
+        cancelText: 'Cancelar',
+        onConfirm: ejecutarGuardado,
+        onCancel: () => { accionPendiente = null },
+      })
+      return
+    }
+  }
+
+  if (modal.origen === 'alimento') {
+    const a = modal.seleccionado
+    const color = clasificarAlimento(a, condiciones.value)
+    if (color === 'rojo') {
+      accionPendiente = 'guardar'
+      mostrarConfirmacion({
+        tipo: 'warning',
+        mensaje: '⚠️ ALERTA: Este alimento está en ROJO según tu perfil y se recomienda evitarlo. ¿Confirmas que deseas consumirlo?',
+        confirmText: 'Sí, confirmar',
+        cancelText: 'Cancelar',
+        onConfirm: ejecutarGuardado,
+        onCancel: () => { accionPendiente = null },
+      })
+      return
+    }
+  }
+
+  if (modal.origen === 'receta' && condiciones.value.celiaquía) {
+    const rec = modal.seleccionado
+    const ings = rec._ingredientes || []
+    const tieneGluten = ings.some(ing => {
+      const a = alimentoMap.value.get(normalizar(ing.alimento_nombre || ing.notas || ''))
+      return a && (a.contiene_gluten === true || a.contiene_gluten === 't')
+    })
+    if (tieneGluten) {
+      accionPendiente = 'guardar'
+      mostrarConfirmacion({
+        tipo: 'danger',
+        mensaje: '🚨 ¡ALERTA! Esta receta contiene ingredientes con GLUTEN. Según tu perfil de celiaquía debes evitarla. ¿Confirmas su consumo?',
+        confirmText: 'Sí, consumir',
+        cancelText: 'Cancelar',
+        onConfirm: ejecutarGuardado,
+        onCancel: () => { accionPendiente = null },
+      })
+      return
+    }
+  }
+
+  if (modal.origen === 'receta') {
+    const rec = modal.seleccionado
+    const colorSem = calcularColorReceta(rec)
+    if (colorSem === 'rojo') {
+      accionPendiente = 'guardar'
+      mostrarConfirmacion({
+        tipo: 'warning',
+        mensaje: '⚠️ ALERTA: Esta receta contiene ingredientes en ROJO según tu perfil y se recomienda evitarla. ¿Confirmas que deseas consumirla?',
+        confirmText: 'Sí, confirmar',
+        cancelText: 'Cancelar',
+        onConfirm: ejecutarGuardado,
+        onCancel: () => { accionPendiente = null },
+      })
+      return
+    }
+  }
+
+  await ejecutarGuardado()
+}
+
+async function ejecutarGuardado() {
+  if (!modal.seleccionado || !userId.value) return
   guardando.value = true
   try {
     const payload = {
@@ -657,8 +866,10 @@ async function guardarEntrada() {
     if (modal.origen === 'alimento') {
       const a     = modal.seleccionado
       const kP    = parseFloat(a.energia_kcal) || 0
+      const ref   = parseCantidadSugerida(a.cantidad_sugerida)
       const pesoP = parseFloat(a.peso_neto_g)  || 100
-      const fact  = (modal.cantidad || 100) / pesoP
+      const base  = isNaN(ref) || !ref ? pesoP : ref
+      const fact  = (modal.cantidad || base) / base
       const color = clasificarAlimento(a, condiciones.value)
       Object.assign(payload, {
         alimento_nombre: a.nombre,
@@ -752,6 +963,7 @@ onMounted(async () => {
 .resumen-header { display: flex; justify-content: space-between; align-items: center; }
 .resumen-titulo { font-size: 15px; font-weight: 700; }
 .tdee-ref { font-size: 13px; color: var(--gray-500); }
+.tdee-dieta { font-size: 11px; color: var(--green-dark); font-weight: 600; }
 .kcal-section { display: flex; flex-direction: column; gap: 8px; }
 .kcal-numbers { display: flex; justify-content: space-between; align-items: baseline; }
 .kcal-main { display: flex; align-items: baseline; gap: 4px; }
@@ -886,4 +1098,32 @@ onMounted(async () => {
 @keyframes spin { to { transform:rotate(360deg); } }
 .modal-enter-active, .modal-leave-active { transition:opacity .3s ease; }
 .modal-enter-from, .modal-leave-to { opacity:0; }
+
+/* ── Alertas de metas ── */
+.alertas-section { display: flex; flex-direction: column; gap: 8px; }
+.alerta-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 600; line-height: 1.4;
+  border-left: 4px solid transparent;
+}
+.alerta-item.alerta-aviso   { background: var(--yellow-light); border-left-color: var(--yellow); color: #7A5800; }
+.alerta-item.alerta-peligro { background: var(--red-light);    border-left-color: var(--red);    color: var(--red); }
+.alerta-icon { font-size: 18px; flex-shrink: 0; }
+
+/* ── Modal de confirmación ── */
+.modal-confirm {
+  max-width: 400px; text-align: center;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 14px; padding: 32px 24px;
+  border-radius: 24px;
+}
+.confirm-icon-wrap { margin-bottom: 4px; }
+.confirm-icon { font-size: 48px; }
+.confirm-title { font-size: 20px; font-weight: 800; color: var(--gray-900); }
+.confirm-msg { font-size: 14px; color: var(--gray-600); line-height: 1.5; }
+.confirm-btns { display: flex; gap: 10px; width: 100%; margin-top: 8px; }
+.confirm-btns .btn { flex: 1; }
+.btn-danger { background: var(--red); color: white; border: none; }
+.btn-danger:hover { background: #d93749; }
 </style>
