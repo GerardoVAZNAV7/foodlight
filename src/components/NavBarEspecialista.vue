@@ -1,4 +1,5 @@
 <template>
+  <!-- ── Sidebar SOLO desktop ── -->
   <aside class="sidebar-esp">
     <transition name="shortcut-toast">
       <div v-if="shortcutLabel" class="shortcut-toast">{{ shortcutLabel }}</div>
@@ -97,6 +98,42 @@
       </transition>
     </div>
   </aside>
+
+  <!-- ── Top navbar SOLO móvil ── -->
+  <header class="navbar-esp-mobile">
+    <div class="nem-brand">
+      <span class="nem-icon">🚦</span>
+      <span class="nem-name">FoodLight</span>
+      <span class="nem-badge">Especialista</span>
+    </div>
+
+    <div class="nem-actions">
+      <DarkModeToggle @change="onThemeChange" />
+      <div class="nem-avatar-wrap">
+        <button class="nem-avatar" @click="toggleUserMenu">{{ initials }}</button>
+        <transition name="dropdown">
+          <div v-if="userMenuOpen" class="nem-dropdown">
+            <div class="nem-dd-header">
+              <div class="nem-dd-avatar">{{ initials }}</div>
+              <div class="nem-dd-info">
+                <span class="nem-dd-name">{{ store.profile?.nombre || store.authUser?.email }}</span>
+                <span class="nem-dd-email">{{ store.authUser?.email }}</span>
+              </div>
+            </div>
+            <div class="nem-dd-divider"></div>
+            <router-link to="/esp/perfil" class="nem-dd-item" @click="userMenuOpen = false">
+              <span>👤</span> Mi perfil
+            </router-link>
+            <button class="nem-dd-item nem-dd-logout" @click="logout">
+              <span>↩</span> Cerrar sesión
+            </button>
+          </div>
+        </transition>
+      </div>
+    </div>
+
+    <div v-if="userMenuOpen" class="nem-overlay" @click="userMenuOpen = false"></div>
+  </header>
 </template>
 
 <script setup>
@@ -115,13 +152,13 @@ const shortcutLabel = ref('')
 let shortcutTimer = null
 
 const shortcutMap = {
-  KeyD: { path: '/dashboard', label: 'Dashboard' },
-  KeyR: { path: '/esp/reportes', label: 'Reportes' },
-  KeyI: { path: '/esp/dietas', label: 'Dietas' },
-  KeyE: { path: '/esp/recetas', label: 'Recetas' },
-  KeyA: { path: '/esp/alimentos', label: 'Alimentos' },
-  KeyP: { path: '/esp/padecimientos', label: 'Padecimientos' },
-  KeyM: { path: '/esp/perfil', label: 'Mi perfil' },
+  KeyD: { path: '/dashboard',        label: 'Dashboard' },
+  KeyR: { path: '/esp/reportes',     label: 'Reportes' },
+  KeyI: { path: '/esp/dietas',       label: 'Dietas' },
+  KeyE: { path: '/esp/recetas',      label: 'Recetas' },
+  KeyA: { path: '/esp/alimentos',    label: 'Alimentos' },
+  KeyP: { path: '/esp/padecimientos',label: 'Padecimientos' },
+  KeyM: { path: '/esp/perfil',       label: 'Mi perfil' },
 }
 
 function showShortcut(label) {
@@ -183,8 +220,11 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* ══════════════════════════════════════════
+   SIDEBAR — solo visible en desktop (≥768px)
+══════════════════════════════════════════ */
 .sidebar-esp {
-  display: flex;
+  display: none; /* oculta en móvil por defecto */
   flex-direction: column;
   background: var(--bg-sidebar);
   border-right: 1px solid var(--border-color);
@@ -195,6 +235,12 @@ onUnmounted(() => {
   gap: 4px;
   transition: background .3s, border-color .3s;
   overflow-y: auto;
+}
+
+@media (min-width: 768px) {
+  .sidebar-esp {
+    display: flex; /* visible solo en desktop */
+  }
 }
 
 .sidebar-brand {
@@ -309,4 +355,102 @@ onUnmounted(() => {
 .shortcut-toast-leave-active { transition: all .2s ease; }
 .shortcut-toast-enter-from { opacity: 0; transform: translateX(-50%) translateY(12px); }
 .shortcut-toast-leave-to { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+
+
+/* ══════════════════════════════════════════
+   TOP NAVBAR MÓVIL — solo visible en móvil (<768px)
+══════════════════════════════════════════ */
+.navbar-esp-mobile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  transition: background .3s, border-color .3s;
+}
+
+@media (min-width: 768px) {
+  .navbar-esp-mobile {
+    display: none; /* En desktop la sidebar ya provee navegación */
+  }
+}
+
+.nem-brand {
+  display: flex; align-items: center; gap: 8px;
+}
+.nem-icon { font-size: 22px; }
+.nem-name {
+  font-size: 18px; font-weight: 800;
+  background: linear-gradient(135deg, var(--green), var(--blue));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.nem-badge {
+  font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
+  background: linear-gradient(135deg, var(--green), var(--blue));
+  color: white; padding: 2px 7px; border-radius: 99px;
+}
+
+.nem-actions {
+  display: flex; align-items: center; gap: 10px;
+}
+
+.nem-avatar-wrap { position: relative; }
+
+.nem-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--green), var(--blue));
+  color: white; font-size: 15px; font-weight: 700;
+  border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .2s, box-shadow .2s;
+}
+.nem-avatar:hover { transform: scale(1.05); box-shadow: 0 2px 8px rgba(0,200,150,.3); }
+
+.nem-dropdown {
+  position: absolute; top: calc(100% + 10px); right: 0;
+  width: 240px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px rgba(0,0,0,.15), 0 0 0 1px var(--border-color);
+  overflow: hidden;
+  z-index: 200;
+}
+.nem-dd-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px;
+  background: linear-gradient(135deg, var(--green-light), var(--blue-light));
+}
+.nem-dd-avatar {
+  width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--green), var(--blue));
+  color: white; font-size: 15px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.nem-dd-info { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.nem-dd-name { font-size: 13px; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nem-dd-email { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nem-dd-divider { height: 1px; background: var(--border-light); }
+.nem-dd-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px; font-size: 13px; font-weight: 600;
+  color: var(--text-secondary); text-decoration: none;
+  background: none; border: none; cursor: pointer;
+  transition: background .15s; width: 100%; text-align: left;
+}
+.nem-dd-item:hover { background: var(--gray-100); }
+.nem-dd-logout { color: var(--red); }
+.nem-dd-logout:hover { background: var(--red-light); }
+
+.nem-overlay {
+  position: fixed; inset: 0; z-index: 190;
+}
+
+.dropdown-enter-active { transition: opacity .2s ease, transform .2s ease; }
+.dropdown-leave-active { transition: opacity .15s ease, transform .15s ease; }
+.dropdown-enter-from { opacity: 0; transform: translateY(-8px); }
+.dropdown-leave-to { opacity: 0; transform: translateY(-4px); }
 </style>

@@ -86,7 +86,7 @@
       </div>
     </aside>
 
-    <!-- Mobile Top Navbar — solo para pacientes (especialista tiene su propia sidebar) -->
+    <!-- Mobile Top Navbar — solo para pacientes -->
     <NavBar v-if="store.isLoggedIn && !store.isEspecialista" />
 
     <!-- Main Content -->
@@ -98,8 +98,11 @@
       </router-view>
     </main>
 
-    <!-- Mobile Bottom Nav — solo pacientes -->
+    <!-- Mobile Bottom Nav — pacientes -->
     <BottomNav v-if="store.isLoggedIn && !store.isEspecialista" />
+
+    <!-- Mobile Bottom Nav — especialistas -->
+    <BottomNavEspecialista v-if="store.isLoggedIn && store.isEspecialista" />
 
     <!-- Shortcut toast -->
     <transition name="shortcut-toast">
@@ -117,6 +120,7 @@ import { useRouter } from 'vue-router'
 import NavBar from '@/components/NavBar.vue'
 import NavBarEspecialista from '@/components/NavBarEspecialista.vue'
 import BottomNav from '@/components/BottomNav.vue'
+import BottomNavEspecialista from '@/components/BottomNavEspecialista.vue'
 import DarkModeToggle from '@/components/DarkModeToggle.vue'
 
 const store = useUserStore()
@@ -256,11 +260,21 @@ onUnmounted(() => {
 
 .sidebar { display: none; }
 
+/* ── Móvil: layout de columna para TODOS los roles ── */
 @media (max-width: 767px) {
   .app-shell {
     max-width: 480px;
     margin: 0 auto;
     box-shadow: 0 0 40px rgba(0,0,0,.08);
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: none !important;
+    grid-template-areas: none !important;
+  }
+
+  .main-content {
+    grid-area: unset !important;
+    width: 100% !important;
   }
 }
 
@@ -292,8 +306,7 @@ onUnmounted(() => {
     transition: background .3s ease, border-color .3s ease;
   }
 
-  /* NavBarEspecialista ya tiene su propio aside con clase sidebar-esp
-     — pero al estar en el grid necesita grid-area: sidebar */
+  /* NavBarEspecialista sidebar ocupa grid-area: sidebar */
   .app-shell.logged-in .sidebar-esp {
     grid-area: sidebar;
   }
@@ -306,9 +319,10 @@ onUnmounted(() => {
     transition: background .3s ease;
   }
 
-  /* Ocultar navbar y bottom nav de móvil en desktop */
-  .app-shell.logged-in nav.bottom-nav { display: none; }
-  .app-shell.logged-in header.navbar { display: none; }
+  /* Ocultar navbars y bottom navs de móvil en desktop */
+  .app-shell.logged-in nav.bottom-nav     { display: none; }
+  .app-shell.logged-in nav.bottom-nav-esp { display: none; }
+  .app-shell.logged-in header.navbar      { display: none; }
 }
 
 @media (min-width: 1200px) {
